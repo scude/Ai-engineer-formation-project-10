@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card shadow-sm">
+  <div class="card-body">
+    <h5 class="card-title">Content Recommendations</h5>
+    <form method="post" action="{{ url_for('recommend') }}" class="row g-3 align-items-end">
+      <div class="col-md-6">
+        <label for="user_id" class="form-label">Select User ID</label>
+        <select class="form-select" id="user_id" name="user_id" required>
+          <option value="" selected disabled>Choose...</option>
+          {% for user_id in user_ids %}
+            <option value="{{ user_id }}">{{ user_id }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-primary">Recommend</button>
+      </div>
+    </form>
+    {% if error %}
+    <div class="alert alert-danger mt-3" role="alert">
+      {{ error }}
+    </div>
+    {% endif %}
+    {% if recommendations %}
+    <div class="mt-4">
+      <h6>Strategy: <span class="badge bg-info text-dark">{{ strategy }}</span></h6>
+      <table class="table table-striped mt-2">
+        <thead>
+          <tr>
+            <th scope="col">#</th>
+            <th scope="col">Article ID</th>
+            <th scope="col">Score</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for rec in recommendations %}
+          <tr>
+            <th scope="row">{{ loop.index }}</th>
+            <td>{{ rec.article_id }}</td>
+            <td>{{ '%.4f'|format(rec.score) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

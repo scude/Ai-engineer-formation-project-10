@@ -1,27 +1,13 @@
-# Python
 __pycache__/
 *.pyc
-*.pyo
-*.pyd
 .env
-.venv
+.venv/
 venv/
-
-# Data & artifacts
-data/
 artifacts/
-*.pickle
-*.pkl
-*.npy
-*.parquet
-
-# Notebooks checkpoints
-.ipynb_checkpoints/
-
-# Azure Functions local settings
+AzureFunctionTools/
 local.settings.json
+*.sqlite
+*.log
 
-# OS / IDE
-.DS_Store
-.idea/
-.vscode/
+# Datasets (never commit)
+data/
