@@ -4,8 +4,8 @@ A production-ready MVP demonstrating a content-based recommender for Globo.com u
 
 ## Data location (read-only)
 
-The dataset is expected at `data/news-portal-user-interactions-by-globocom/` relative to the repository root, exactly as listed in `tree.txt`. The project only reads:
-- `clicks_sample.csv`
+The dataset is expected at `data/news-portal-user-interactions-by-globocom/` relative to the repository root, exactly as listed in `tree.txt`. The project reads:
+- `clicks/` directory containing `clicks_hour_XXX.csv` files
 - `articles_embeddings.pickle`
 
 No files under `/data` should be modified.

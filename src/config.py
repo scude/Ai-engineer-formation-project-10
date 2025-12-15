@@ -7,7 +7,7 @@ REPO_ROOT: Path = Path(__file__).resolve().parent.parent
 DATA_ROOT: Path = REPO_ROOT / "data" / "news-portal-user-interactions-by-globocom"
 
 # Raw data paths
-CLICKS_SAMPLE_PATH: Path = DATA_ROOT / "clicks_sample.csv"
+CLICKS_DIR: Path = DATA_ROOT / "clicks"
 ARTICLES_EMBEDDINGS_PATH: Path = DATA_ROOT / "articles_embeddings.pickle"
 
 # Artifacts directory (can be overridden via environment variable)
@@ -25,7 +25,7 @@ TOP_K_RECOMMENDATIONS: int = 5
 __all__ = [
     "REPO_ROOT",
     "DATA_ROOT",
-    "CLICKS_SAMPLE_PATH",
+    "CLICKS_DIR",
     "ARTICLES_EMBEDDINGS_PATH",
     "ARTIFACTS_DIR",
     "ARTICLE_EMBEDDINGS_MATRIX_PATH",

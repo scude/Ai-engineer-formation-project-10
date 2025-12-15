@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 from src import config
-from src.data.load_data import load_clicks_sample
+from src.data.load_data import load_clicks
 from src.data.preprocess import prepare_embeddings, prepare_popular_articles, prepare_user_clicks
 
 
@@ -13,8 +13,8 @@ def main() -> None:
     artifacts_dir: Path = config.ARTIFACTS_DIR
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
-    print("Loading clicks_sample.csv...")
-    clicks = load_clicks_sample()
+    print("Loading clicks data...")
+    clicks = load_clicks()
 
     print("Preparing user clicks map...")
     user_clicks = prepare_user_clicks(clicks)

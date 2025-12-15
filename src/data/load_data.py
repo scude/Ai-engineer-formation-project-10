@@ -27,36 +27,60 @@ def _resolve_column(df: pd.DataFrame, target: str, candidates: Iterable[str]) ->
             return name
 
     raise ValueError(
-        f"clicks_sample.csv missing expected {target} column. "
+        f"Clicks data missing expected {target} column. "
         f"Tried {', '.join(candidates)} but found {list(df.columns)}"
     )
 
 
-def load_clicks_sample() -> pd.DataFrame:
-    """Load the sample clicks data and normalize column names.
+def _load_clicks_file(path: Path) -> pd.DataFrame:
+    """Load a single clicks CSV file and normalize critical columns."""
 
-    Accepts common column variants seen in the Globo.com dataset such as
-    ``click_article_id`` or ``article_id`` for the clicked item, and renames
-    them to the canonical ``clicked_article_id`` column used by the pipeline.
-
-    Returns:
-        DataFrame with at least columns [user_id, clicked_article_id].
-    """
-    if not config.CLICKS_SAMPLE_PATH.exists():
-        raise FileNotFoundError(
-            f"clicks_sample.csv not found at {config.CLICKS_SAMPLE_PATH}. Ensure data is available."
-        )
-
-    df = pd.read_csv(config.CLICKS_SAMPLE_PATH)
+    df = pd.read_csv(path)
 
     user_col = _resolve_column(df, "user_id", ["user_id"])
     article_col = _resolve_column(
         df, "clicked article id", ["clicked_article_id", "click_article_id", "article_id"]
     )
+    ts_col = _resolve_column(df, "timestamp", ["click_timestamp", "timestamp"])
 
-    normalized = df.rename(columns={user_col: "user_id", article_col: "clicked_article_id"})
+    normalized = df.rename(
+        columns={user_col: "user_id", article_col: "clicked_article_id", ts_col: "timestamp"}
+    )
+    normalized["timestamp"] = pd.to_datetime(normalized["timestamp"])
 
-    return normalized
+    return normalized[["user_id", "clicked_article_id", "timestamp"]]
+
+
+def load_clicks(clicks_dir: Path | None = None, limit_files: int | None = None) -> pd.DataFrame:
+    """Load clicks from the Globo dataset directory.
+
+    Args:
+        clicks_dir: Directory containing ``clicks_hour_XXX.csv`` files or a
+            single CSV file path. Defaults to :data:`config.CLICKS_DIR`.
+        limit_files: Optional cap on the number of hourly files to read (useful
+            for local experimentation).
+
+    Returns:
+        DataFrame with columns [user_id, clicked_article_id, timestamp].
+    """
+
+    source = Path(clicks_dir) if clicks_dir is not None else config.CLICKS_DIR
+
+    if source.is_file():
+        files = [source]
+    elif source.is_dir():
+        files = sorted(source.glob("clicks_hour_*.csv"))
+        if not files:
+            raise FileNotFoundError(f"No clicks_hour_*.csv files found in {source}")
+    else:
+        raise FileNotFoundError(f"Clicks path {source} does not exist")
+
+    if limit_files is not None:
+        files = files[:limit_files]
+
+    frames = [_load_clicks_file(path) for path in files]
+    combined = pd.concat(frames, ignore_index=True)
+    return combined.sort_values("timestamp").reset_index(drop=True)
 
 
 def _normalize_embedding(embedding: Iterable[float] | float | int) -> np.ndarray:
@@ -184,7 +208,7 @@ def align_embeddings_with_clicks(embeddings_df: pd.DataFrame, clicks: pd.DataFra
 
     if aligned.empty:
         raise ValueError(
-            "No article embeddings match clicked_article_id from clicks_sample.csv. "
+            "No article embeddings match clicked_article_id from clicks data. "
             "Your articles_embeddings.pickle is not aligned with Globo article IDs."
         )
 

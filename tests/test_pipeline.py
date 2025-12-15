@@ -11,7 +11,7 @@ sys.path.append(str(ROOT))
 
 from src import config
 from src.data.diagnostics import compute_overlap_summary, format_overlap_summary
-from src.data.load_data import align_embeddings_with_clicks, load_article_embeddings, load_clicks_sample
+from src.data.load_data import align_embeddings_with_clicks, load_article_embeddings, load_clicks
 from src.inference.predict import load_recommender
 from src.train.build_artifacts import main as build_artifacts_main
 
@@ -30,16 +30,22 @@ def temp_artifacts(monkeypatch, tmp_path):
     return artifacts_dir
 
 
-def test_load_clicks_sample_normalizes_columns(tmp_path, monkeypatch):
-    sample = pd.DataFrame({"user_id": [1, 2], "click_article_id": [10, 11]})
-    sample_path = tmp_path / "clicks_sample.csv"
+def test_load_clicks_normalizes_columns(tmp_path, monkeypatch):
+    sample = pd.DataFrame({
+        "user_id": [1, 2],
+        "click_article_id": [10, 11],
+        "click_timestamp": ["2021-01-01", "2021-01-02"],
+    })
+    clicks_dir = tmp_path / "clicks"
+    clicks_dir.mkdir()
+    sample_path = clicks_dir / "clicks_hour_000.csv"
     sample.to_csv(sample_path, index=False)
 
-    monkeypatch.setattr(config, "CLICKS_SAMPLE_PATH", sample_path)
+    monkeypatch.setattr(config, "CLICKS_DIR", clicks_dir)
 
-    loaded = load_clicks_sample()
+    loaded = load_clicks()
 
-    assert list(loaded.columns) == ["user_id", "clicked_article_id"]
+    assert list(loaded.columns) == ["user_id", "clicked_article_id", "timestamp"]
     assert loaded["clicked_article_id"].tolist() == [10, 11]
 
 
@@ -83,10 +89,16 @@ def test_compute_overlap_summary_reports_missing_embeddings():
 
 
 def test_end_to_end_build_and_predict(monkeypatch, tmp_path, temp_artifacts):
-    clicks = pd.DataFrame({"user_id": [1, 1], "clicked_article_id": [10, 20]})
-    clicks_path = tmp_path / "clicks_sample.csv"
+    clicks = pd.DataFrame({
+        "user_id": [1, 1],
+        "click_article_id": [10, 20],
+        "click_timestamp": ["2021-01-01", "2021-01-02"],
+    })
+    clicks_dir = tmp_path / "clicks"
+    clicks_dir.mkdir()
+    clicks_path = clicks_dir / "clicks_hour_000.csv"
     clicks.to_csv(clicks_path, index=False)
-    monkeypatch.setattr(config, "CLICKS_SAMPLE_PATH", clicks_path)
+    monkeypatch.setattr(config, "CLICKS_DIR", clicks_dir)
 
     embeddings = pd.DataFrame(
         {"article_id": [10, 20, 30], "embedding": [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]]}
