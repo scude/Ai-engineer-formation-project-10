@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.venv
+venv/
+
+# Data & artifacts
+data/
+artifacts/
+*.pickle
+*.pkl
+*.npy
+*.parquet
+
+# Notebooks checkpoints
+.ipynb_checkpoints/
+
+# Azure Functions local settings
+local.settings.json
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
