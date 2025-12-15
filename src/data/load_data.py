@@ -10,8 +10,34 @@ import pandas as pd
 from src import config
 
 
+def _resolve_column(df: pd.DataFrame, target: str, candidates: Iterable[str]) -> str:
+    """Return the column from ``df`` matching one of the candidates.
+
+    Args:
+        df: DataFrame to inspect.
+        target: Human-friendly name for error messages.
+        candidates: Possible column names ordered by priority.
+
+    Raises:
+        ValueError: if none of the candidates are found.
+    """
+
+    for name in candidates:
+        if name in df.columns:
+            return name
+
+    raise ValueError(
+        f"clicks_sample.csv missing expected {target} column. "
+        f"Tried {', '.join(candidates)} but found {list(df.columns)}"
+    )
+
+
 def load_clicks_sample() -> pd.DataFrame:
-    """Load the sample clicks data.
+    """Load the sample clicks data and normalize column names.
+
+    Accepts common column variants seen in the Globo.com dataset such as
+    ``click_article_id`` or ``article_id`` for the clicked item, and renames
+    them to the canonical ``clicked_article_id`` column used by the pipeline.
 
     Returns:
         DataFrame with at least columns [user_id, clicked_article_id].
@@ -20,19 +46,17 @@ def load_clicks_sample() -> pd.DataFrame:
         raise FileNotFoundError(
             f"clicks_sample.csv not found at {config.CLICKS_SAMPLE_PATH}. Ensure data is available."
         )
+
     df = pd.read_csv(config.CLICKS_SAMPLE_PATH)
-    expected_columns = {"user_id", "clicked_article_id"}
-    missing = expected_columns - set(df.columns)
 
-    # Some dataset variants use "click_article_id" instead of "clicked_article_id".
-    if missing == {"clicked_article_id"} and "click_article_id" in df.columns:
-        df = df.rename(columns={"click_article_id": "clicked_article_id"})
-        missing = expected_columns - set(df.columns)
+    user_col = _resolve_column(df, "user_id", ["user_id"])
+    article_col = _resolve_column(
+        df, "clicked article id", ["clicked_article_id", "click_article_id", "article_id"]
+    )
 
-    if missing:
-        raise ValueError(f"clicks_sample.csv missing expected columns: {missing}")
+    normalized = df.rename(columns={user_col: "user_id", article_col: "clicked_article_id"})
 
-    return df
+    return normalized
 
 
 def _normalize_embedding(embedding: Iterable[float] | float | int) -> np.ndarray:
@@ -51,8 +75,9 @@ def _normalize_embedding(embedding: Iterable[float] | float | int) -> np.ndarray
 def load_article_embeddings() -> pd.DataFrame:
     """Load article embeddings from pickle and normalize the structure.
 
-    Supports pickle content being a pandas DataFrame with columns [article_id, embedding],
-    or a dictionary mapping article_id to embedding vectors.
+    Supports pickle content being a pandas DataFrame (with flexible column names),
+    a dictionary mapping article_id to embedding vectors, or various array/record
+    combinations produced by the Globo data dumps.
     """
     embeddings_path: Path = config.ARTICLES_EMBEDDINGS_PATH
     if not embeddings_path.exists():
@@ -64,9 +89,10 @@ def load_article_embeddings() -> pd.DataFrame:
         payload = pickle.load(f)
 
     if isinstance(payload, pd.DataFrame):
-        if not {"article_id", "embedding"}.issubset(payload.columns):
-            raise ValueError("Embedding DataFrame must include 'article_id' and 'embedding' columns")
-        df = payload.copy()
+        article_col = _resolve_column(payload, "article_id", ["article_id", "id", "articleId"])
+        embedding_col = _resolve_column(payload, "embedding", ["embedding", "embeddings", "vector", "vectors"])
+
+        df = payload.rename(columns={article_col: "article_id", embedding_col: "embedding"}).copy()
         df["article_id"] = df["article_id"].astype(int)
         df["embedding"] = df["embedding"].apply(_normalize_embedding)
         return df[["article_id", "embedding"]]

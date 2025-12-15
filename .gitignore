@@ -10,4 +10,4 @@ local.settings.json
 *.log
 
 # Datasets (never commit)
-data/
+/data/

@@ -26,7 +26,7 @@ def main() -> None:
     np.save(config.POPULAR_ARTICLES_PATH, popular_articles)
 
     print("Loading article embeddings...")
-    article_ids, article_embeddings = prepare_embeddings()
+    article_ids, article_embeddings = prepare_embeddings(clicks)
     np.save(config.ARTICLE_IDS_PATH, article_ids)
     np.save(config.ARTICLE_EMBEDDINGS_MATRIX_PATH, article_embeddings)
 
