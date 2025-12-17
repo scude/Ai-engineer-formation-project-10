@@ -90,3 +90,78 @@ class ContentRecommender:
 
         return recs, "content-based"
 
+
+class HybridCovisitationRecommender:
+    """Hybrid recommender mixing co-visitation similarity with popularity.
+
+    Mirrors the implementation used in the training notebook so that serving
+    behaves identically to the validated E3-1 model.
+    """
+
+    def __init__(
+        self,
+        similarity: Dict[int, Dict[int, float]],
+        popularity: List[int],
+        popularity_scores: Dict[int, float],
+        user_clicks: Dict[int, np.ndarray],
+        *,
+        alpha: float,
+        top_k: int | None = None,
+    ) -> None:
+        self.similarity = {
+            int(item): {int(nbr): float(score) for nbr, score in neighbors.items()}
+            for item, neighbors in similarity.items()
+        }
+        self.popularity = [int(aid) for aid in popularity]
+        self.popularity_scores = {int(k): float(v) for k, v in popularity_scores.items()}
+        self.user_clicks = user_clicks
+        self.alpha = float(alpha)
+        self.top_k = top_k or config.TOP_K_RECOMMENDATIONS
+
+    def _get_seen(self, user_id: int) -> set[int]:
+        uid = int(user_id)
+        history = self.user_clicks.get(uid)
+        if history is None:
+            history = self.user_clicks.get(str(uid))
+        if history is None:
+            return set()
+
+        if isinstance(history, np.ndarray):
+            items = history.tolist()
+        else:
+            try:
+                items = list(history)
+            except TypeError:
+                items = []
+
+        return {int(aid) for aid in items if aid is not None}
+
+    def recommend(self, user_id: int) -> Tuple[List[Recommendation], str]:
+        seen = self._get_seen(user_id)
+
+        scores: Dict[int, float] = {}
+        for item in seen:
+            for neighbor, sim in self.similarity.get(item, {}).items():
+                if neighbor in seen:
+                    continue
+                scores[neighbor] = scores.get(neighbor, 0.0) + self.alpha * float(sim)
+
+        for item, pop_score in self.popularity_scores.items():
+            if item in seen:
+                continue
+            scores[item] = scores.get(item, 0.0) + (1 - self.alpha) * float(pop_score)
+
+        ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        recs = [Recommendation(article_id=int(it), score=float(score)) for it, score in ranked]
+
+        if len(recs) < self.top_k:
+            existing = {rec.article_id for rec in recs}
+            for aid in self.popularity:
+                if aid in seen or aid in existing:
+                    continue
+                recs.append(Recommendation(article_id=int(aid), score=0.0))
+                if len(recs) >= self.top_k:
+                    break
+
+        return recs[: self.top_k], "hybrid-covisitation-popularity"
+

@@ -22,10 +22,10 @@ def temp_artifacts(monkeypatch, tmp_path):
     artifacts_dir.mkdir()
 
     monkeypatch.setattr(config, "ARTIFACTS_DIR", artifacts_dir)
-    monkeypatch.setattr(config, "ARTICLE_EMBEDDINGS_MATRIX_PATH", artifacts_dir / "article_embeddings.npy")
-    monkeypatch.setattr(config, "ARTICLE_IDS_PATH", artifacts_dir / "article_ids.npy")
     monkeypatch.setattr(config, "POPULAR_ARTICLES_PATH", artifacts_dir / "popular_articles.npy")
+    monkeypatch.setattr(config, "POPULARITY_SCORES_PATH", artifacts_dir / "popularity_scores.pkl")
     monkeypatch.setattr(config, "USER_CLICKS_PATH", artifacts_dir / "user_clicks.pkl")
+    monkeypatch.setattr(config, "COVISIT_SIMILARITY_PATH", artifacts_dir / "covisit_similarity.pkl")
 
     return artifacts_dir
 
@@ -89,31 +89,25 @@ def test_compute_overlap_summary_reports_missing_embeddings():
 
 
 def test_end_to_end_build_and_predict(monkeypatch, tmp_path, temp_artifacts):
-    clicks = pd.DataFrame({
-        "user_id": [1, 1],
-        "click_article_id": [10, 20],
-        "click_timestamp": ["2021-01-01", "2021-01-02"],
-    })
+    clicks = pd.DataFrame(
+        {
+            "user_id": [1, 1, 2],
+            "click_article_id": [10, 20, 30],
+            "click_timestamp": ["2021-01-01", "2021-01-02", "2021-01-03"],
+        }
+    )
     clicks_dir = tmp_path / "clicks"
     clicks_dir.mkdir()
     clicks_path = clicks_dir / "clicks_hour_000.csv"
     clicks.to_csv(clicks_path, index=False)
     monkeypatch.setattr(config, "CLICKS_DIR", clicks_dir)
 
-    embeddings = pd.DataFrame(
-        {"article_id": [10, 20, 30], "embedding": [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]]}
-    )
-    embeddings_path = tmp_path / "articles_embeddings.pickle"
-    with embeddings_path.open("wb") as f:
-        pickle.dump(embeddings, f)
-    monkeypatch.setattr(config, "ARTICLES_EMBEDDINGS_PATH", embeddings_path)
-
     build_artifacts_main()
 
     recommender = load_recommender(str(config.ARTIFACTS_DIR))
     recs, strategy = recommender.recommend(1)
 
-    assert strategy == "content-based"
-    returned_ids = {rec.article_id for rec in recs}
-    assert 30 in returned_ids
-    assert returned_ids.isdisjoint({10, 20})
+    assert strategy == "hybrid-covisitation-popularity"
+    returned_ids = [rec.article_id for rec in recs]
+    assert returned_ids[0] == 30
+    assert set(returned_ids).isdisjoint({10, 20})

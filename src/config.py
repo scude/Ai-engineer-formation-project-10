@@ -17,10 +17,20 @@ ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
 ARTICLE_EMBEDDINGS_MATRIX_PATH: Path = ARTIFACTS_DIR / "article_embeddings.npy"
 ARTICLE_IDS_PATH: Path = ARTIFACTS_DIR / "article_ids.npy"
 POPULAR_ARTICLES_PATH: Path = ARTIFACTS_DIR / "popular_articles.npy"
+POPULARITY_SCORES_PATH: Path = ARTIFACTS_DIR / "popularity_scores.pkl"
 USER_CLICKS_PATH: Path = ARTIFACTS_DIR / "user_clicks.pkl"
+COVISIT_SIMILARITY_PATH: Path = ARTIFACTS_DIR / "covisit_similarity.pkl"
 
 # Recommendation constants
 TOP_K_RECOMMENDATIONS: int = 5
+
+# Serving metadata
+MODEL_NAME: str = "E3-1"
+MODEL_HYPERPARAMETERS: dict = {
+    "covisit_hybrid_alpha": 0.7350738721058192,
+    "covisit_top_n_neighbors": 20,
+}
+DEFAULT_SIMILARITY_METRIC: str = "cosine"
 
 __all__ = [
     "REPO_ROOT",
@@ -31,6 +41,11 @@ __all__ = [
     "ARTICLE_EMBEDDINGS_MATRIX_PATH",
     "ARTICLE_IDS_PATH",
     "POPULAR_ARTICLES_PATH",
+    "POPULARITY_SCORES_PATH",
     "USER_CLICKS_PATH",
+    "COVISIT_SIMILARITY_PATH",
     "TOP_K_RECOMMENDATIONS",
+    "MODEL_NAME",
+    "MODEL_HYPERPARAMETERS",
+    "DEFAULT_SIMILARITY_METRIC",
 ]

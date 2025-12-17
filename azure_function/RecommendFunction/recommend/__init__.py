@@ -19,6 +19,7 @@ FUNCTION_ROOT = Path(__file__).resolve().parents[2]
 if str(FUNCTION_ROOT) not in sys.path:
     sys.path.insert(0, str(FUNCTION_ROOT))
 
+from src import config  # noqa: E402
 from src.inference.predict import predict, serialize_recommendations  # noqa: E402
 
 
@@ -102,7 +103,13 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     # ----------------------------
     # Build response
     # ----------------------------
-    response_body = serialize_recommendations(user_id, recs, strategy)
+    response_body = serialize_recommendations(
+        user_id,
+        recs,
+        strategy,
+        model_name=config.MODEL_NAME,
+        hyperparameters=config.MODEL_HYPERPARAMETERS,
+    )
 
     return func.HttpResponse(
         response_body,

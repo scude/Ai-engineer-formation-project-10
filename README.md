@@ -1,12 +1,17 @@
-# My Content - Content Recommendation MVP
+# My Content - Hybrid Co-visitation Recommendation MVP
 
-A production-ready MVP demonstrating a content-based recommender for Globo.com user interactions. The project builds offline artifacts from the provided dataset, exposes recommendations via an Azure Function HTTP API, and offers a simple Flask UI that consumes the API.
+A production-ready MVP demonstrating the tuned **E3-1** hybrid co-visitation + popularity recommender for Globo.com user interactions. The project builds offline artifacts from the provided dataset, exposes recommendations via an Azure Function HTTP API, and offers a simple Flask UI that consumes the API.
 
 ## Data location (read-only)
 
 The dataset is expected at `data/news-portal-user-interactions-by-globocom/` relative to the repository root, exactly as listed in `tree.txt`. The project reads:
 - `clicks/` directory containing `clicks_hour_XXX.csv` files
 - `articles_embeddings.pickle`
+
+The online inference layer exposes the **E3-1** recommender configuration with tuned hyperparameters:
+
+- `covisit_hybrid_alpha = 0.7350738721058192`
+- `covisit_top_n_neighbors = 20`
 
 No files under `/data` should be modified.
 
@@ -27,9 +32,9 @@ python -m src.train.build_artifacts
 ```
 
 Generated files:
-- `article_embeddings.npy`
-- `article_ids.npy`
 - `popular_articles.npy`
+- `popularity_scores.pkl`
+- `covisit_similarity.pkl`
 - `user_clicks.pkl`
 
 ## Azure Function (local)
