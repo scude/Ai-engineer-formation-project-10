@@ -37,7 +37,7 @@ def _load_clicks_file(path: Path) -> pd.DataFrame:
 
     df = pd.read_csv(path)
 
-    user_col = _resolve_column(df, "user_id", ["user_id"])
+    user_col = _resolve_column(df, "user_id", ["user_id", "userid", "user"])
     article_col = _resolve_column(
         df, "clicked article id", ["clicked_article_id", "click_article_id", "article_id"]
     )
@@ -47,6 +47,29 @@ def _load_clicks_file(path: Path) -> pd.DataFrame:
         columns={user_col: "user_id", article_col: "clicked_article_id", ts_col: "timestamp"}
     )
     normalized["timestamp"] = pd.to_datetime(normalized["timestamp"])
+    normalized["user_id"] = pd.to_numeric(normalized["user_id"], errors="coerce")
+    normalized["clicked_article_id"] = pd.to_numeric(
+        normalized["clicked_article_id"], errors="coerce"
+    )
+
+    if normalized["user_id"].isna().any():
+        raise ValueError(
+            f"Clicks data contains non-numeric user_id values in {path}. Ensure the user_id column is correct."
+        )
+
+    if normalized["clicked_article_id"].isna().any():
+        raise ValueError(
+            f"Clicks data contains non-numeric clicked_article_id values in {path}. Verify the article id column."
+        )
+
+    # Guard against accidentally using a per-row surrogate (e.g., an index) as the user_id
+    if len(normalized) > 50:
+        user_ids = normalized["user_id"].astype(int)
+        if user_ids.nunique(dropna=True) == len(user_ids) and user_ids.is_monotonic_increasing:
+            raise ValueError(
+                "user_id appears to be a monotonically increasing row identifier. "
+                "Confirm the clicks aggregation preserves the real user_id column."
+            )
 
     return normalized[["user_id", "clicked_article_id", "timestamp"]]
 

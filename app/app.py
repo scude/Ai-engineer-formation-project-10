@@ -4,7 +4,7 @@ import os
 import pickle
 import sys
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
+from typing import Any, Dict, Iterable, List, Set, Tuple
 
 import requests
 from flask import Flask, render_template, request
@@ -21,6 +21,48 @@ app = Flask(__name__)
 AZURE_FUNCTION_URL = os.getenv("AZURE_FUNCTION_URL", "http://localhost:7071/api/recommend")
 
 
+def _normalize_user_ids(raw: Any) -> List[int]:
+    """Extract a sorted list of unique ``user_id`` values from various payload shapes."""
+
+    try:
+        import pandas as pd
+    except Exception:  # pragma: no cover - pandas is always available via requirements
+        pd = None
+
+    user_id_candidates: Iterable[Any]
+
+    if isinstance(raw, dict):
+        user_id_candidates = raw.keys()
+    elif isinstance(raw, (list, tuple, set)):
+        user_id_candidates = raw
+    elif pd is not None and isinstance(raw, (pd.Series, pd.Index)):
+        user_id_candidates = raw.tolist()
+    elif pd is not None and isinstance(raw, pd.DataFrame):
+        normalized_cols = {col.lower().replace("-", "_"): col for col in raw.columns}
+        for target in ("user_id", "userid", "user"):
+            if target in normalized_cols:
+                column = normalized_cols[target]
+                break
+        else:
+            raise ValueError(
+                "User catalog DataFrame is missing a user_id column; "
+                f"found columns: {list(raw.columns)}"
+            )
+
+        user_id_candidates = raw[column].tolist()
+    else:
+        raise ValueError(f"Unsupported user_clicks structure: {type(raw)}")
+
+    normalized = []
+    for candidate in user_id_candidates:
+        try:
+            normalized.append(int(candidate))
+        except (TypeError, ValueError):
+            continue
+
+    return sorted(set(normalized))
+
+
 def load_user_catalog(max_suggestions: int = 200) -> Tuple[List[int], Set[int], int]:
     """Return a preview list of user IDs plus the full set for validation."""
 
@@ -29,11 +71,11 @@ def load_user_catalog(max_suggestions: int = 200) -> Tuple[List[int], Set[int], 
         return [], set(), 0
 
     with user_clicks_path.open("rb") as f:
-        user_clicks: Dict[int, list[int]] = pickle.load(f)
+        raw_user_clicks: Any = pickle.load(f)
 
-    user_ids = sorted(int(uid) for uid in user_clicks.keys())
+    user_ids = _normalize_user_ids(raw_user_clicks)
     user_id_set = set(user_ids)
-    return user_ids[:max_suggestions], user_id_set, len(user_ids)
+    return user_ids[:max_suggestions], user_id_set, len(user_id_set)
 
 
 @app.route("/", methods=["GET"])

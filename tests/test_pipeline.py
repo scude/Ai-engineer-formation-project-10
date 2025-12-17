@@ -49,6 +49,27 @@ def test_load_clicks_normalizes_columns(tmp_path, monkeypatch):
     assert loaded["clicked_article_id"].tolist() == [10, 11]
 
 
+def test_load_clicks_rejects_monotonic_unique_user_ids(tmp_path, monkeypatch):
+    # Simulate an incorrectly aggregated clicks file where the row index was
+    # persisted as the user identifier and is strictly increasing.
+    sample = pd.DataFrame(
+        {
+            "user": list(range(60)),
+            "article_id": [42] * 60,
+            "timestamp": pd.date_range("2021-01-01", periods=60, freq="min"),
+        }
+    )
+    clicks_dir = tmp_path / "clicks"
+    clicks_dir.mkdir()
+    sample_path = clicks_dir / "clicks_hour_000.csv"
+    sample.to_csv(sample_path, index=False)
+
+    monkeypatch.setattr(config, "CLICKS_DIR", clicks_dir)
+
+    with pytest.raises(ValueError):
+        load_clicks()
+
+
 def test_align_embeddings_with_clicks_raises_on_empty_overlap():
     embeddings_df = pd.DataFrame({"article_id": [1, 2], "embedding": [[1.0], [0.5]]})
     clicks_df = pd.DataFrame({"user_id": [1], "clicked_article_id": [99]})
