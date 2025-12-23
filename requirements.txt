@@ -5,3 +5,4 @@ requests
 azure-functions
 pytest
 scikit-learn
+scikit-surprise

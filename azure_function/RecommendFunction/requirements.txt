@@ -1,3 +1,4 @@
 azure-functions
 numpy
 pandas
+scikit-surprise

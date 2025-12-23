@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import Dict, Iterable, List, Tuple
 
 import numpy as np
+from surprise import AlgoBase
 
 from src import config
 from src.models.similarity import cosine_similarity
@@ -13,6 +14,56 @@ from src.models.similarity import cosine_similarity
 class Recommendation:
     article_id: int
     score: float
+
+
+class SurpriseRecommender:
+    """Wrapper around a Surprise algorithm for top-N recommendation."""
+
+    def __init__(
+        self,
+        model: AlgoBase,
+        item_ids: Iterable[int],
+        user_clicks: Dict[int, np.ndarray],
+        popularity: List[int],
+        *,
+        top_k: int | None = None,
+    ) -> None:
+        self.model = model
+        self.item_ids = [int(iid) for iid in item_ids]
+        self.user_clicks = user_clicks
+        self.popularity = [int(aid) for aid in popularity]
+        self.top_k = top_k or config.TOP_K_RECOMMENDATIONS
+
+    def _get_seen(self, user_id: int) -> set[int]:
+        uid = int(user_id)
+        history = self.user_clicks.get(uid) or self.user_clicks.get(str(uid))
+        if history is None:
+            return set()
+        if isinstance(history, np.ndarray):
+            items = history.tolist()
+        else:
+            try:
+                items = list(history)
+            except TypeError:
+                items = []
+        return {int(aid) for aid in items if aid is not None}
+
+    def recommend(self, user_id: int) -> Tuple[List[Recommendation], str]:
+        seen = self._get_seen(user_id)
+        scored: List[Recommendation] = []
+
+        for raw_iid in self.item_ids:
+            if raw_iid in seen:
+                continue
+            pred = self.model.predict(str(user_id), str(raw_iid), verbose=False)
+            scored.append(Recommendation(article_id=int(raw_iid), score=float(pred.est)))
+
+        if not scored:
+            fallback = [aid for aid in self.popularity if aid not in seen][: self.top_k]
+            return [Recommendation(article_id=int(aid), score=0.0) for aid in fallback], "surprise-fallback"
+
+        scored.sort(key=lambda rec: rec.score, reverse=True)
+        return scored[: self.top_k], "surprise-model"
 
 
 class ContentRecommender:

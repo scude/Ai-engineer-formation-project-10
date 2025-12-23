@@ -4,12 +4,12 @@ import json
 import pickle
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 
 from src import config
-from src.models.recommender import HybridCovisitationRecommender, Recommendation
+from src.models.recommender import Recommendation, SurpriseRecommender
 
 
 def _load_artifact(path: Path) -> Path:
@@ -53,31 +53,30 @@ def _normalize_user_clicks(raw: Any) -> Dict[int, np.ndarray]:
 
 
 @lru_cache(maxsize=1)
-def load_recommender(artifacts_dir: str | None = None) -> HybridCovisitationRecommender:
+def load_recommender(artifacts_dir: str | None = None) -> SurpriseRecommender:
     base_dir = Path(artifacts_dir) if artifacts_dir else config.ARTIFACTS_DIR
 
     popular_articles_path = base_dir / config.POPULAR_ARTICLES_PATH.name
-    popularity_scores_path = base_dir / config.POPULARITY_SCORES_PATH.name
+    surprise_model_path = base_dir / config.SURPRISE_MODEL_PATH.name
+    surprise_items_path = base_dir / config.SURPRISE_ITEMS_PATH.name
     user_clicks_path = base_dir / config.USER_CLICKS_PATH.name
-    similarity_path = base_dir / config.COVISIT_SIMILARITY_PATH.name
 
     popular_articles = np.load(_load_artifact(popular_articles_path))
-    with _load_artifact(similarity_path).open("rb") as f:
-        similarity = pickle.load(f)
-    with _load_artifact(popularity_scores_path).open("rb") as f:
-        popularity_scores: Dict[int, float] = pickle.load(f)
+    surprise_items = np.load(_load_artifact(surprise_items_path))
+
+    with _load_artifact(surprise_model_path).open("rb") as f:
+        surprise_model = pickle.load(f)
 
     with _load_artifact(user_clicks_path).open("rb") as f:
         raw_user_clicks: Any = pickle.load(f)
 
     user_clicks = _normalize_user_clicks(raw_user_clicks)
 
-    return HybridCovisitationRecommender(
-        similarity=similarity,
-        popularity=popular_articles.tolist(),
-        popularity_scores=popularity_scores,
+    return SurpriseRecommender(
+        model=surprise_model,
+        item_ids=surprise_items.tolist(),
         user_clicks=user_clicks,
-        alpha=float(config.MODEL_HYPERPARAMETERS["covisit_hybrid_alpha"]),
+        popularity=popular_articles.tolist(),
     )
 
 

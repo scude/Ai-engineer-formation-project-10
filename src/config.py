@@ -20,15 +20,18 @@ POPULAR_ARTICLES_PATH: Path = ARTIFACTS_DIR / "popular_articles.npy"
 POPULARITY_SCORES_PATH: Path = ARTIFACTS_DIR / "popularity_scores.pkl"
 USER_CLICKS_PATH: Path = ARTIFACTS_DIR / "user_clicks.pkl"
 COVISIT_SIMILARITY_PATH: Path = ARTIFACTS_DIR / "covisit_similarity.pkl"
+SURPRISE_MODEL_PATH: Path = ARTIFACTS_DIR / "surprise_model.pkl"
+SURPRISE_ITEMS_PATH: Path = ARTIFACTS_DIR / "surprise_items.npy"
 
 # Recommendation constants
 TOP_K_RECOMMENDATIONS: int = 5
 
 # Serving metadata
-MODEL_NAME: str = "E3-1"
+MODEL_NAME: str = "Surprise-SVD"
 MODEL_HYPERPARAMETERS: dict = {
-    "covisit_hybrid_alpha": 0.7350738721058192,
-    "covisit_top_n_neighbors": 20,
+    "n_factors": 50,
+    "reg_all": 0.02,
+    "lr_all": 0.005,
 }
 DEFAULT_SIMILARITY_METRIC: str = "cosine"
 
