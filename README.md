@@ -15,6 +15,10 @@ The online inference layer exposes the **E3-1** recommender configuration with t
 
 No files under `/data` should be modified.
 
+The evaluation notebook now compares four strategies side by side: native SVD (Surprise),
+session-size-weighted SVD, a LightFM-style item-to-item model leveraging user context,
+and a 60/40 hybrid between the two families.
+
 ## Setup
 
 ```bash
