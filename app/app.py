@@ -139,6 +139,7 @@ def index():
         user_id_suggestions=user_id_suggestions,
         user_count=user_count,
         active_users=active_users,
+        default_hybrid_weight=config.MODEL_HYPERPARAMETERS["hybrid_cf_weight"],
         recommendations=None,
         strategy=None,
         model=None,
@@ -150,6 +151,7 @@ def index():
 @app.route("/recommend", methods=["POST"])
 def recommend():
     user_id = request.form.get("user_id", "").strip()
+    hybrid_weight = request.form.get("hybrid_weight", "").strip()
     user_id_suggestions, valid_user_ids, user_count = load_user_catalog()
     active_users = load_active_users()
     if not user_id:
@@ -158,6 +160,7 @@ def recommend():
             user_id_suggestions=user_id_suggestions,
             user_count=user_count,
             active_users=active_users,
+            default_hybrid_weight=config.MODEL_HYPERPARAMETERS["hybrid_cf_weight"],
             recommendations=None,
             strategy=None,
             model=None,
@@ -173,6 +176,7 @@ def recommend():
             user_id_suggestions=user_id_suggestions,
             user_count=user_count,
             active_users=active_users,
+            default_hybrid_weight=config.MODEL_HYPERPARAMETERS["hybrid_cf_weight"],
             recommendations=None,
             strategy=None,
             model=None,
@@ -180,12 +184,39 @@ def recommend():
             error="Invalid user ID provided.",
         )
 
+    try:
+        resolved_cf_weight = (
+            float(hybrid_weight) if hybrid_weight else config.MODEL_HYPERPARAMETERS["hybrid_cf_weight"]
+        )
+        resolved_cb_weight = 1.0 - resolved_cf_weight
+    except ValueError:
+        return render_template(
+            "index.html",
+            user_id_suggestions=user_id_suggestions,
+            user_count=user_count,
+            active_users=active_users,
+            default_hybrid_weight=config.MODEL_HYPERPARAMETERS["hybrid_cf_weight"],
+            recommendations=None,
+            strategy=None,
+            model=None,
+            hyperparameters=None,
+            error="Hybrid weight must be a numeric value.",
+        )
+
+    payload = {
+        "user_id": int(user_id),
+        "hybrid_weight": resolved_cf_weight,
+        "hybrid_cf_weight": resolved_cf_weight,
+        "hybrid_cb_weight": resolved_cb_weight,
+    }
+
     if valid_user_ids and payload["user_id"] not in valid_user_ids:
         return render_template(
             "index.html",
             user_id_suggestions=user_id_suggestions,
             user_count=user_count,
             active_users=active_users,
+            default_hybrid_weight=config.MODEL_HYPERPARAMETERS["hybrid_cf_weight"],
             recommendations=None,
             strategy=None,
             model=None,
@@ -207,6 +238,7 @@ def recommend():
             user_id_suggestions=user_id_suggestions,
             user_count=user_count,
             active_users=active_users,
+            default_hybrid_weight=resolved_cf_weight,
             recommendations=recommendations,
             strategy=strategy,
             model=model,
@@ -219,6 +251,7 @@ def recommend():
             user_id_suggestions=user_id_suggestions,
             user_count=user_count,
             active_users=active_users,
+            default_hybrid_weight=resolved_cf_weight,
             recommendations=None,
             strategy=None,
             model=None,

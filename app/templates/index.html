@@ -60,6 +60,23 @@
             </datalist>
             <div class="form-text">Suggestions from {{ user_count }} available users.</div>
           </div>
+          <div class="col-12">
+            <label for="hybrid_weight" class="form-label">Hybrid weight (CF vs CB)</label>
+            <input
+              type="range"
+              class="form-range"
+              id="hybrid_weight"
+              name="hybrid_weight"
+              min="0"
+              max="1"
+              step="0.01"
+              value="{{ default_hybrid_weight }}"
+            >
+            <div class="form-text">
+              CF: <span id="hybrid_cf_value">{{ '%.2f'|format(default_hybrid_weight) }}</span>
+              · CB: <span id="hybrid_cb_value">{{ '%.2f'|format(1 - default_hybrid_weight) }}</span>
+            </div>
+          </div>
           <div class="col-md-2">
             <button type="submit" class="btn btn-primary">Recommend</button>
           </div>
@@ -162,4 +179,17 @@
     </div>
   </div>
 </div>
+<script>
+  const hybridSlider = document.getElementById("hybrid_weight");
+  const cfValue = document.getElementById("hybrid_cf_value");
+  const cbValue = document.getElementById("hybrid_cb_value");
+
+  if (hybridSlider && cfValue && cbValue) {
+    hybridSlider.addEventListener("input", (event) => {
+      const value = Number(event.target.value || 0);
+      cfValue.textContent = value.toFixed(2);
+      cbValue.textContent = (1 - value).toFixed(2);
+    });
+  }
+</script>
 {% endblock %}

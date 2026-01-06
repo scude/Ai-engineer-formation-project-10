@@ -78,11 +78,42 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     # ----------------------------
     artifacts_dir = _resolve_artifacts_dir()
 
+    hybrid_weight = request_json.get("hybrid_weight")
+    hybrid_cf_weight = request_json.get("hybrid_cf_weight")
+    hybrid_cb_weight = request_json.get("hybrid_cb_weight")
+
+    try:
+        if hybrid_weight is not None:
+            resolved_cf_weight = float(hybrid_weight)
+            resolved_cb_weight = 1.0 - resolved_cf_weight
+        else:
+            resolved_cf_weight = (
+                float(hybrid_cf_weight)
+                if hybrid_cf_weight is not None
+                else config.MODEL_HYPERPARAMETERS["hybrid_cf_weight"]
+            )
+            resolved_cb_weight = (
+                float(hybrid_cb_weight)
+                if hybrid_cb_weight is not None
+                else config.MODEL_HYPERPARAMETERS["hybrid_cb_weight"]
+            )
+    except (TypeError, ValueError):
+        return func.HttpResponse(
+            json.dumps({"error": "Hybrid weights must be numeric values."}),
+            status_code=HTTPStatus.BAD_REQUEST,
+            mimetype="application/json",
+        )
+
     # ----------------------------
     # Generate recommendations
     # ----------------------------
     try:
-        recs, strategy = predict(user_id=user_id, artifacts_dir=artifacts_dir)
+        recs, strategy = predict(
+            user_id=user_id,
+            artifacts_dir=artifacts_dir,
+            cf_weight=resolved_cf_weight,
+            cb_weight=resolved_cb_weight,
+        )
         logging.info("Returned strategy=%s, num_recs=%s", strategy, len(recs))
 
     except FileNotFoundError as exc:
@@ -108,7 +139,11 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         recs,
         strategy,
         model_name=config.MODEL_NAME,
-        hyperparameters=config.MODEL_HYPERPARAMETERS,
+        hyperparameters={
+            **config.MODEL_HYPERPARAMETERS,
+            "hybrid_cf_weight": resolved_cf_weight,
+            "hybrid_cb_weight": resolved_cb_weight,
+        },
     )
 
     return func.HttpResponse(

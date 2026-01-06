@@ -88,8 +88,18 @@ def load_recommender(artifacts_dir: str | None = None) -> HybridSVDContentRecomm
     )
 
 
-def predict(user_id: int, artifacts_dir: str | None = None) -> Tuple[List[Recommendation], str]:
+def predict(
+    user_id: int,
+    artifacts_dir: str | None = None,
+    *,
+    cf_weight: float | None = None,
+    cb_weight: float | None = None,
+) -> Tuple[List[Recommendation], str]:
     recommender = load_recommender(artifacts_dir)
+    if cf_weight is not None:
+        recommender.cf_weight = float(cf_weight)
+    if cb_weight is not None:
+        recommender.cb_weight = float(cb_weight)
     return recommender.recommend(int(user_id))
 
 
