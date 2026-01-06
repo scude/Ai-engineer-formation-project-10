@@ -36,8 +36,8 @@ MODEL_HYPERPARAMETERS: dict = {
     "lr_all": 0.005,
     "rating_base": 1.0,
     "session_weighting": "1 + log1p(avg_session_size)",
-    "hybrid_cf_weight": 0.6,
-    "hybrid_cb_weight": 0.4,
+    "hybrid_cf_weight": 0.9,
+    "hybrid_cb_weight": 0.1,
     "pca_components": PCA_COMPONENTS,
 }
 HYBRID_CANDIDATE_POOL: int = 50
