@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 
 from src import config
-from src.models.recommender import Recommendation, SurpriseRecommender
+from src.models.recommender import HybridSVDContentRecommender, Recommendation
 
 
 def _load_artifact(path: Path) -> Path:
@@ -53,16 +53,20 @@ def _normalize_user_clicks(raw: Any) -> Dict[int, np.ndarray]:
 
 
 @lru_cache(maxsize=1)
-def load_recommender(artifacts_dir: str | None = None) -> SurpriseRecommender:
+def load_recommender(artifacts_dir: str | None = None) -> HybridSVDContentRecommender:
     base_dir = Path(artifacts_dir) if artifacts_dir else config.ARTIFACTS_DIR
 
     popular_articles_path = base_dir / config.POPULAR_ARTICLES_PATH.name
     surprise_model_path = base_dir / config.SURPRISE_MODEL_PATH.name
     surprise_items_path = base_dir / config.SURPRISE_ITEMS_PATH.name
     user_clicks_path = base_dir / config.USER_CLICKS_PATH.name
+    embeddings_path = base_dir / config.ARTICLE_EMBEDDINGS_MATRIX_PATH.name
+    article_ids_path = base_dir / config.ARTICLE_IDS_PATH.name
 
     popular_articles = np.load(_load_artifact(popular_articles_path))
     surprise_items = np.load(_load_artifact(surprise_items_path))
+    article_embeddings = np.load(_load_artifact(embeddings_path))
+    article_ids = np.load(_load_artifact(article_ids_path))
 
     with _load_artifact(surprise_model_path).open("rb") as f:
         surprise_model = pickle.load(f)
@@ -72,11 +76,15 @@ def load_recommender(artifacts_dir: str | None = None) -> SurpriseRecommender:
 
     user_clicks = _normalize_user_clicks(raw_user_clicks)
 
-    return SurpriseRecommender(
+    return HybridSVDContentRecommender(
         model=surprise_model,
         item_ids=surprise_items.tolist(),
+        article_ids=article_ids,
+        article_embeddings=article_embeddings,
         user_clicks=user_clicks,
         popularity=popular_articles.tolist(),
+        cf_weight=config.MODEL_HYPERPARAMETERS["hybrid_cf_weight"],
+        cb_weight=config.MODEL_HYPERPARAMETERS["hybrid_cb_weight"],
     )
 
 

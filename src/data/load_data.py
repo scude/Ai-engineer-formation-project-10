@@ -42,6 +42,10 @@ def _load_clicks_file(path: Path) -> pd.DataFrame:
         df, "clicked article id", ["clicked_article_id", "click_article_id", "article_id"]
     )
     ts_col = _resolve_column(df, "timestamp", ["click_timestamp", "timestamp"])
+    session_col = next(
+        (candidate for candidate in ["session_size", "sessionLength", "session_length"] if candidate in df.columns),
+        None,
+    )
 
     normalized = df.rename(
         columns={user_col: "user_id", article_col: "clicked_article_id", ts_col: "timestamp"}
@@ -51,6 +55,10 @@ def _load_clicks_file(path: Path) -> pd.DataFrame:
     normalized["clicked_article_id"] = pd.to_numeric(
         normalized["clicked_article_id"], errors="coerce"
     )
+    if session_col is not None:
+        normalized["session_size"] = pd.to_numeric(df[session_col], errors="coerce").fillna(1.0)
+    else:
+        normalized["session_size"] = 1.0
 
     if normalized["user_id"].isna().any():
         raise ValueError(
@@ -71,7 +79,7 @@ def _load_clicks_file(path: Path) -> pd.DataFrame:
                 "Confirm the clicks aggregation preserves the real user_id column."
             )
 
-    return normalized[["user_id", "clicked_article_id", "timestamp"]]
+    return normalized[["user_id", "clicked_article_id", "timestamp", "session_size"]]
 
 
 def load_clicks(clicks_dir: Path | None = None, limit_files: int | None = None) -> pd.DataFrame:

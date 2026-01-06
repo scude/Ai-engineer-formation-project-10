@@ -1,4 +1,4 @@
 azure-functions
-numpy
+numpy<2
 pandas
 scikit-surprise

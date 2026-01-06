@@ -1,6 +1,6 @@
-# My Content - Hybrid Co-visitation Recommendation MVP
+# My Content - Hybrid Recommendation MVP
 
-A production-ready MVP demonstrating the tuned **E3-1** hybrid co-visitation + popularity recommender for Globo.com user interactions. The project builds offline artifacts from the provided dataset, exposes recommendations via an Azure Function HTTP API, and offers a simple Flask UI that consumes the API.
+A production-ready MVP demonstrating a **Hybrid SVD++ (session weighting) + Content-Based (cosine on embeddings)** recommender for Globo.com user interactions. The project builds offline artifacts from the provided dataset, exposes recommendations via an Azure Function HTTP API, and offers a simple Flask UI that consumes the API.
 
 ## Data location (read-only)
 
@@ -8,16 +8,13 @@ The dataset is expected at `data/news-portal-user-interactions-by-globocom/` rel
 - `clicks/` directory containing `clicks_hour_XXX.csv` files
 - `articles_embeddings.pickle`
 
-The online inference layer exposes the **E3-1** recommender configuration with tuned hyperparameters:
+The online inference layer exposes the hybrid configuration validated in the notebook:
 
-- `covisit_hybrid_alpha = 0.7350738721058192`
-- `covisit_top_n_neighbors = 20`
+- SVD++ with session-size weighting (`rating = 1 + log1p(avg_session_size)`)
+- Content-based cosine similarity on PCA-reduced embeddings (32 components)
+- Rank-fusion weights: 60% collaborative / 40% content
 
 No files under `/data` should be modified.
-
-The evaluation notebook now compares four strategies side by side: native SVD (Surprise),
-session-size-weighted SVD, a LightFM-style item-to-item model leveraging user context,
-and a 60/40 hybrid between the two families.
 
 ## Setup
 
@@ -36,10 +33,13 @@ python -m src.train.build_artifacts
 ```
 
 Generated files:
+- `article_ids.npy`
+- `article_embeddings_pca_32.npy`
 - `popular_articles.npy`
 - `popularity_scores.pkl`
-- `covisit_similarity.pkl`
 - `user_clicks.pkl`
+- `svdpp_session_weighted.pkl`
+- `svdpp_items.npy`
 
 ## Azure Function (local)
 
@@ -82,4 +82,3 @@ azure_function/      # Azure Function entrypoint
 app/                 # Flask UI
 artifacts/           # Generated recommendation artifacts (not committed)
 ```
-
