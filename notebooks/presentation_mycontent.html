@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="fr">
+
+<head>
+    <meta charset="utf-8">
+    <title>Projet 10 - MyContent</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.2.1/reveal.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.2.1/reset.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.2.1/theme/dracula.min.css"
+        id="theme">
+    <style>
+        img {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #444;
+            margin: 0 !important;
+        }
+
+        .reveal section {
+            text-align: left;
+            font-size: 0.8em;
+        }
+
+        .content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 2%;
+        }
+
+        .content div {
+            width: 48%;
+        }
+
+        h2,
+        h3 {
+            color: #FF6E78 !important;
+        }
+
+        li b {
+            color: #FF8714
+        }
+
+        strong {
+            color: #FF8714 !important
+        }
+
+        .reveal section {
+            font-size: 0.6em;
+        }
+
+        ul li::marker {
+            color: #FF8714;
+            font-weight: bold;
+        }
+
+        li {
+            font-size: 0.8em
+        }
+
+        .content H3 {
+            font-size: 1.3em;
+            padding-top: 0.6em;
+            margin-bottom: 0.2em !important;
+        }
+        
+        img {
+            border-radius: 12px;
+            background-color: transparent;
+            box-shadow: none;
+        }
+
+    </style>
+</head>
+
+<body>
+    <div class="reveal">
+        <div class="slides">
+            <section>
+                <div style="float:left; min-height:2em; margin-right:0.3em;">
+                    <h3 style="color: white !important"><strong>🧩 Projet 10</strong> -</h3>
+                </div>
+                <div>
+                    <h3 style="color: white !important">MyContent : système de recommandation d’articles</h3>
+                </div>
+
+                <p style="margin-top: 2em; font-size: 1em;">
+                    <strong>Contexte MVP :</strong><br />
+                    MyContent est un moteur de recommandation pour portail d’actualités, destiné à proposer un
+                    <strong>Top-5 personnalisé</strong> à chaque lecteur à partir de ses interactions récentes.
+                </p>
+
+                <p style="margin-top: 1.5em; font-size: 1em;">
+                    <strong>Objectif :</strong><br />
+                    Valider un <strong>pipeline de recommandation hybride</strong> mêlant contenu et collaboratif,
+                    prêt à être exposé via une architecture serverless.
+                </p>
+            </section>
+
+            <section>
+                <h2 style="color: #FF8714; text-align: center;">🧭 Vue d’ensemble du projet</h2>
+
+                <p style="margin-top: 1em; font-size: 1em;">
+                    Le projet MyContent vise à fournir des recommandations pertinentes dans un cadre MVP :
+                </p>
+
+                <ul style="font-size: 0.95em; margin-top: 1em;">
+                    <li>🎯 <strong>Objectif produit</strong> : maximiser l’engagement via un Top-5 d’articles
+                        pertinents.</li>
+                    <li>🧑‍💻 <strong>User story clé</strong> :</li>
+                </ul>
+                <blockquote style="margin-top: 0.8em; font-size: 0.95em; border-left: 3px solid #FF8714; padding-left: 1em;">
+                    « En tant qu’utilisateur de l’application, je vais recevoir une sélection de cinq articles. »
+                </blockquote>
+            </section>
+
+            <section>
+                <h2 style="font-size:1.2em; color: #FF8714; text-align: center;">📂 EDA et données</h2>
+                <p style="font-size: 1.05em; text-align: center;">Dataset Kaggle <em>news-portal-user-interactions-by-globocom</em></p>
+
+                <div class="content" style="display: flex; justify-content: space-between; gap: 2%; font-size:0.9em; align-items: flex-start !important">
+                    <div style="width: 48%;">
+                        <h3 style="color: #FF6E78;">📊 Volumétrie</h3>
+                        <ul>
+                            <li>📁 <strong>385 fichiers</strong> de clics agrégés</li>
+                            <li>🧾 <strong>2 988 181 interactions</strong></li>
+                            <li>👥 <strong>322 897 utilisateurs</strong></li>
+                            <li>📰 <strong>46 033 articles</strong> présents dans les clics</li>
+                        </ul>
+
+                        <h3 style="color: #FF6E78;">📅 Fenêtre temporelle</h3>
+                        <ul>
+                            <li>Observation sur ~44 jours</li>
+                            <li>Du <strong>2017-10-01</strong> au <strong>2017-11-13</strong></li>
+                        </ul>
+                    </div>
+
+                    <div style="width: 48%;">
+                        <h3 style="color: #FF6E78;">🧩 Spécificités</h3>
+                        <ul>
+                            <li>🔎 <strong>364 047 articles</strong> en métadonnées</li>
+                            <li>⚠️ <strong>Pas de rating explicite</strong></li>
+                            <li>✅ Nécessité de définir un <strong>rating implicite</strong></li>
+                        </ul>
+
+                        <h3 style="color: #FF6E78;">🧪 Split temporel</h3>
+                        <ul>
+                            <li>Train : <strong>2 342 387</strong> interactions</li>
+                            <li>Validation : <strong>221 469</strong> interactions</li>
+                            <li>Test : <strong>221 469</strong> interactions</li>
+                            <li>Catalogue train : <strong>36 165 articles</strong></li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h2 style="font-size:1.2em; color: #FF8714; text-align: center;">🧠 Panorama des approches</h2>
+                <p style="font-size: 1.05em; text-align: center;">Deux familles complémentaires de modèles</p>
+
+                <div class="content" style="display: flex; justify-content: space-between; gap: 2%; font-size:0.88em; align-items: flex-start !important">
+                    <div style="width: 48%;">
+                        <h3 style="color: #FF6E78;">📌 Content-Based Filtering</h3>
+                        <ul>
+                            <li>Compare les <strong>profils d’articles</strong> via leurs embeddings</li>
+                            <li>Recommande des contenus proches sémantiquement</li>
+                            <li>Particulièrement utile en cold-start utilisateur</li>
+                        </ul>
+                    </div>
+
+                    <div style="width: 48%;">
+                        <h3 style="color: #FF6E78;">🤝 Collaborative Filtering</h3>
+                        <ul>
+                            <li>Apprend des <strong>patterns d’interaction</strong> entre utilisateurs et articles</li>
+                            <li>Exploite les co-consommations implicites</li>
+                            <li>Performance liée à la densité des interactions</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div style="margin-top: 1.4em; background: #1a1a1a; padding: 0.8em; border-radius: 10px;">
+                    <p style="margin: 0; font-size: 0.9em;">
+                        🧰 <strong>Librairie Surprise</strong> : standardise l’entraînement, l’évaluation RMSE et les
+                        métriques Top-K (precision, recall, NDCG) pour comparer les modèles.
+                    </p>
+                </div>
+            </section>
+
+            <section>
+                <h2 style="font-size:1.2em; color: #FF8714; text-align: center;">📌 Modèle Content-Based retenu</h2>
+                <p style="font-size: 1.05em; text-align: center;">Embeddings d’articles + similarité cosinus</p>
+
+                <div class="content" style="display: flex; justify-content: space-between; gap: 2%; font-size:0.88em; align-items: flex-start !important">
+                    <div style="width: 48%;">
+                        <h3 style="color: #FF6E78;">🧠 Principe</h3>
+                        <ul>
+                            <li>Embeddings d’articles (250 dimensions)</li>
+                            <li>Normalisation + similarité cosinus</li>
+                            <li>Stratégie <code>last_item</code> pour générer les candidats</li>
+                        </ul>
+                    </div>
+
+                    <div style="width: 48%;">
+                        <h3 style="color: #FF6E78;">📈 Résultats observés</h3>
+                        <ul>
+                            <li>precision@5 = <strong>0.004396</strong></li>
+                            <li>recall@5 = <strong>0.021981</strong></li>
+                            <li>ndcg@5 = <strong>0.011706</strong></li>
+                            <li>coverage@5 = <strong>0.0066</strong> (très faible)</li>
+                        </ul>
+                        <p style="margin-top: 0.6em; font-size: 0.82em;">
+                            ✅ Qualité de ranking maximale, mais couverture limitée due à l’absence d’<code>article_id</code>
+                            explicite dans les embeddings.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h2 style="font-size:1.2em; color: #FF8714; text-align: center;">🤝 Modèle Collaborative Filtering retenu</h2>
+                <p style="font-size: 1.05em; text-align: center;">SVD++ sur interactions implicites</p>
+
+                <div class="content" style="display: flex; justify-content: space-between; gap: 2%; font-size:0.88em; align-items: flex-start !important">
+                    <div style="width: 48%;">
+                        <h3 style="color: #FF6E78;">🧠 Principe</h3>
+                        <ul>
+                            <li>SVD++ entraîné via Surprise</li>
+                            <li>Exploit des signaux implicites de lecture</li>
+                            <li>Pondération de session pour refléter l’engagement</li>
+                        </ul>
+                    </div>
+
+                    <div style="width: 48%;">
+                        <h3 style="color: #FF6E78;">📉 Limites observées</h3>
+                        <ul>
+                            <li>SVD++ basic : precision@5 = <strong>0.000278</strong></li>
+                            <li>SVD++ pondéré : precision@5 = <strong>0.001630</strong></li>
+                            <li>recall@5 = <strong>0.008150</strong> (pondéré)</li>
+                            <li>ndcg@5 = <strong>0.005016</strong> (pondéré)</li>
+                            <li>RMSE : <strong>0.7210</strong> (basic) vs <strong>1.5824</strong> (pondéré)</li>
+                        </ul>
+                        <p style="margin-top: 0.6em; font-size: 0.82em;">
+                            ⚠️ Le collaboratif seul reste inférieur au content-based sur ce dataset, malgré un
+                            gain de recall/NDCG via la pondération.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h2 style="font-size:1.2em; color: #FF8714; text-align: center;">⭐ Rating implicite</h2>
+                <p style="font-size: 1.05em; text-align: center;">Transformation des clics en signal supervisé</p>
+
+                <div class="content" style="display: flex; justify-content: space-between; gap: 2%; font-size:0.88em; align-items: flex-start !important">
+                    <div style="width: 48%;">
+                        <h3 style="color: #FF6E78;">🧮 Construction</h3>
+                        <ul>
+                            <li><strong>rating_base</strong> = 1 + 0.01 × rang temporel normalisé</li>
+                            <li>Signal étendu : <code>rating = rating_base + log1p(session_size)</code></li>
+                            <li>Distribution centrée autour de <strong>2.21</strong></li>
+                        </ul>
+                    </div>
+
+                    <div style="width: 48%;">
+                        <h3 style="color: #FF6E78;">💡 Justification</h3>
+                        <ul>
+                            <li>Injecter une <strong>variance minimale</strong> pour Surprise</li>
+                            <li>Favoriser les sessions longues (engagement)</li>
+                            <li>Maintenir une logique purement implicite</li>
+                        </ul>
+                        <p style="margin-top: 0.6em; font-size: 0.82em;">
+                            ✅ Permet l’entraînement des modèles SVD++ sans ratings explicites.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h2 style="font-size:1.2em; color: #FF8714; text-align: center;">🧬 Modèle hybride</h2>
+                <p style="font-size: 1.05em; text-align: center;">Fusion rangée : SVD++ pondéré + contenu</p>
+
+                <div class="content" style="display: flex; justify-content: space-between; gap: 2%; font-size:0.88em; align-items: flex-start !important">
+                    <div style="width: 48%;">
+                        <h3 style="color: #FF6E78;">⚙️ Principe</h3>
+                        <ul>
+                            <li>Fusion par rang : <strong>60% collaboratif</strong> / <strong>40% contenu</strong></li>
+                            <li>Combine similarité de contenu + préférences implicites</li>
+                            <li>Recommandation Top-5 stable</li>
+                        </ul>
+                    </div>
+
+                    <div style="width: 48%;">
+                        <h3 style="color: #FF6E78;">📈 Résultats</h3>
+                        <ul>
+                            <li>precision@5 = <strong>0.002379</strong></li>
+                            <li>recall@5 = <strong>0.011893</strong></li>
+                            <li>ndcg@5 = <strong>0.006559</strong></li>
+                            <li>coverage@5 = <strong>0.3988</strong></li>
+                        </ul>
+                        <p style="margin-top: 0.6em; font-size: 0.82em;">
+                            ✅ Meilleur compromis qualité/couverture → retenu pour le MVP.<br />
+                            ⚠️ Limite : la qualité reste inférieure au content-based seul.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h2 style="font-size:1.2em; color: #FF8714; text-align: center;">🧱 Architecture technique</h2>
+                <p style="font-size: 1.05em; text-align: center;">Pipeline serverless pour l’inférence</p>
+
+                <div class="content" style="display: flex; justify-content: space-between; gap: 2%; font-size:0.88em; align-items: flex-start !important">
+                    <div style="width: 48%;">
+                        <h3 style="color: #FF6E78;">☁️ Architecture</h3>
+                        <ul>
+                            <li>Azure Functions : endpoint <code>/api/recommend</code></li>
+                            <li>Artifacts offline : embeddings PCA, SVD++ pondéré</li>
+                            <li>Flask UI pour exposer le MVP</li>
+                        </ul>
+                    </div>
+
+                    <div style="width: 48%;">
+                        <h3 style="color: #FF6E78;">🔄 Flux global</h3>
+                        <ul>
+                            <li>Chargement des artefacts en mémoire</li>
+                            <li>Requête user_id → scoring hybride</li>
+                            <li>Retour JSON + affichage UI</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h2 style="font-size:1.2em; color: #FF8714; text-align: center;">🧮 PCA</h2>
+                <p style="font-size: 1.05em; text-align: center;">Réduction de dimension pour la production</p>
+
+                <div class="content" style="display: flex; justify-content: space-between; gap: 2%; font-size:0.88em; align-items: flex-start !important">
+                    <div style="width: 48%;">
+                        <h3 style="color: #FF6E78;">🔍 Principe</h3>
+                        <ul>
+                            <li>Embeddings réduits de <strong>250 → 32 dimensions</strong></li>
+                            <li>Variance expliquée : <strong>84,29%</strong></li>
+                            <li>Artefacts PCA sauvegardés pour l’inférence</li>
+                        </ul>
+                    </div>
+
+                    <div style="width: 48%;">
+                        <h3 style="color: #FF6E78;">🚀 Impact</h3>
+                        <ul>
+                            <li>Réduction des coûts de stockage Azure</li>
+                            <li>Chargement plus rapide des embeddings</li>
+                            <li>Amélioration de la latence d’inférence</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h2 style="font-size:1.2em; color: #FF8714; text-align: center;">🖥️ Interface utilisateur</h2>
+                <p style="font-size: 1.05em; text-align: center;">MVP Flask connecté à l’API Azure</p>
+
+                <div class="content" style="display: flex; justify-content: space-between; gap: 2%; font-size:0.88em; align-items: flex-start !important">
+                    <div style="width: 48%;">
+                        <h3 style="color: #FF6E78;">🧭 Fonctionnement</h3>
+                        <ul>
+                            <li>Choix d’un utilisateur disponible</li>
+                            <li>Appel au endpoint Azure Function</li>
+                            <li>Affichage des Top-5 recommandés</li>
+                        </ul>
+                        <p style="margin-top: 0.6em; font-size: 0.82em;">
+                            ✅ L’interface valide la cohérence du pipeline bout-en-bout.
+                        </p>
+                    </div>
+
+                    <div style="width: 48%; text-align: center; border: 1px dashed #555; padding: 1em; border-radius: 12px;">
+                        <p style="font-size: 0.9em; color: #aaa; margin-bottom: 0.6em;">Capture base64 à insérer</p>
+                        <img src="data:image/png;base64,PLACEHOLDER_BASE64" alt="Capture UI" />
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h2 style="font-size:1.2em; color: #FF8714; text-align: center;">🔁 Mise à jour du modèle</h2>
+                <p style="font-size: 1.05em; text-align: center;">Pipeline d’industrialisation</p>
+
+                <div class="content" style="display: flex; justify-content: space-between; gap: 2%; font-size:0.88em; align-items: flex-start !important">
+                    <div style="width: 48%;">
+                        <h3 style="color: #FF6E78;">🧱 Scripts</h3>
+                        <ul>
+                            <li><code>src.train.build_artifacts</code> pour recalculer PCA/SVD++</li>
+                            <li>Export des artefacts : embeddings PCA, modèle SVD++, popularité</li>
+                            <li>Artifacts stockés dans <code>artifacts/</code></li>
+                        </ul>
+                    </div>
+
+                    <div style="width: 48%;">
+                        <h3 style="color: #FF6E78;">🏭 Industrialisation</h3>
+                        <ul>
+                            <li>Relance périodique sur nouveaux clics</li>
+                            <li>Re-déploiement Azure Function avec nouveaux artefacts</li>
+                            <li>Interface Flask inchangée (consommation API)</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h2 style="font-size:1.2em; color: #FF8714; text-align: center;">✅ Conclusion</h2>
+                <p style="font-size: 1.05em; text-align: center;">Synthèse des choix techniques</p>
+
+                <ul style="font-size: 0.95em; margin-top: 1em;">
+                    <li>Le <strong>content-based</strong> obtient la meilleure qualité, mais une couverture trop faible.</li>
+                    <li>Le <strong>collaboratif SVD++ pondéré</strong> améliore recall/NDCG mais reste limité seul.</li>
+                    <li>Le <strong>modèle hybride</strong> offre le meilleur compromis qualité/couverture.</li>
+                    <li>✅ <strong>Modèle retenu pour le MVP</strong> : SVD++ pondéré + contenu (60/40).</li>
+                </ul>
+            </section>
+
+            <section>
+                <h2 style="font-size:1.2em; color: #FF8714; text-align: center;">🔭 Pour aller plus loin</h2>
+                <p style="font-size: 1.05em; text-align: center;">Axes d’amélioration possibles</p>
+
+                <ul style="font-size: 0.95em; margin-top: 1em;">
+                    <li>📈 <strong>Améliorer la couverture</strong> en alignant embeddings et article_id.</li>
+                    <li>⚙️ <strong>Feature engineering</strong> sur sessions (durée, catégorie, device).</li>
+                    <li>🌐 <strong>Scalabilité</strong> : batch scoring + cache Redis.</li>
+                    <li>🧪 <strong>Évolutions modèles</strong> : two-tower, LightFM, sequential recsys.</li>
+                </ul>
+            </section>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.2.1/reveal.min.js"></script>
+    <script>
+        Reveal.initialize();
+    </script>
+</body>
+
+</html>
