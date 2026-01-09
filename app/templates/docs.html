@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card shadow-sm">
+  <div class="card-body">
+    <h5 class="card-title">API Documentation</h5>
+    <p class="text-muted">Interactive Swagger documentation for the recommendation API.</p>
+    <div id="swagger-ui"></div>
+  </div>
+</div>
+<link
+  rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14/swagger-ui.css"
+>
+<script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14/swagger-ui-bundle.js"></script>
+<script>
+  window.addEventListener("load", () => {
+    SwaggerUIBundle({
+      url: "{{ url_for('openapi_spec') }}",
+      dom_id: "#swagger-ui",
+    });
+  });
+</script>
+{% endblock %}

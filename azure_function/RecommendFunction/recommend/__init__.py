@@ -23,6 +23,15 @@ from src import config  # noqa: E402
 from src.inference.predict import predict, serialize_recommendations  # noqa: E402
 
 
+def _cors_headers() -> Dict[str, str]:
+    allowed_origin = os.getenv("ALLOWED_ORIGIN", "*")
+    return {
+        "Access-Control-Allow-Origin": allowed_origin,
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+    }
+
+
 def _resolve_artifacts_dir() -> str:
     """
     Resolve ARTIFACTS_DIR to an absolute path.
@@ -41,6 +50,10 @@ def _resolve_artifacts_dir() -> str:
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Received request for recommendations")
+    cors_headers = _cors_headers()
+
+    if req.method == "OPTIONS":
+        return func.HttpResponse(status_code=HTTPStatus.NO_CONTENT, headers=cors_headers)
 
     # ----------------------------
     # Parse JSON payload
@@ -53,6 +66,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             json.dumps({"error": "Invalid JSON payload"}),
             status_code=HTTPStatus.BAD_REQUEST,
             mimetype="application/json",
+            headers=cors_headers,
         )
 
     if "user_id" not in request_json:
@@ -60,6 +74,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             json.dumps({"error": "'user_id' is required"}),
             status_code=HTTPStatus.BAD_REQUEST,
             mimetype="application/json",
+            headers=cors_headers,
         )
 
     try:
@@ -69,6 +84,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             json.dumps({"error": "'user_id' must be an integer"}),
             status_code=HTTPStatus.BAD_REQUEST,
             mimetype="application/json",
+            headers=cors_headers,
         )
 
     logging.info("Request user_id=%s", user_id)
@@ -102,6 +118,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             json.dumps({"error": "Hybrid weights must be numeric values."}),
             status_code=HTTPStatus.BAD_REQUEST,
             mimetype="application/json",
+            headers=cors_headers,
         )
 
     # ----------------------------
@@ -122,6 +139,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             json.dumps({"error": str(exc)}),
             status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
             mimetype="application/json",
+            headers=cors_headers,
         )
     except Exception:  # noqa: BLE001
         logging.exception("Unexpected error while generating recommendations")
@@ -129,6 +147,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             json.dumps({"error": "Internal server error"}),
             status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
             mimetype="application/json",
+            headers=cors_headers,
         )
 
     # ----------------------------
@@ -150,4 +169,5 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         response_body,
         status_code=HTTPStatus.OK,
         mimetype="application/json",
+        headers=cors_headers,
     )

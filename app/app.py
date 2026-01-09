@@ -7,8 +7,9 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Set, Tuple
 
 import numpy as np
-import requests
-from flask import Flask, render_template, request
+from urllib.parse import urlparse
+
+from flask import Flask, jsonify, render_template
 
 # Ensure src package is importable
 APP_ROOT = Path(__file__).resolve().parents[1]
@@ -140,6 +141,7 @@ def index():
         user_count=user_count,
         active_users=active_users,
         default_hybrid_weight=config.MODEL_HYPERPARAMETERS["hybrid_cf_weight"],
+        azure_function_url=AZURE_FUNCTION_URL,
         recommendations=None,
         strategy=None,
         model=None,
@@ -148,116 +150,89 @@ def index():
     )
 
 
-@app.route("/recommend", methods=["POST"])
-def recommend():
-    user_id = request.form.get("user_id", "").strip()
-    hybrid_weight = request.form.get("hybrid_weight", "").strip()
-    user_id_suggestions, valid_user_ids, user_count = load_user_catalog()
-    active_users = load_active_users()
-    if not user_id:
-        return render_template(
-            "index.html",
-            user_id_suggestions=user_id_suggestions,
-            user_count=user_count,
-            active_users=active_users,
-            default_hybrid_weight=config.MODEL_HYPERPARAMETERS["hybrid_cf_weight"],
-            recommendations=None,
-            strategy=None,
-            model=None,
-            hyperparameters=None,
-            error="Please select a user ID.",
-        )
+def _azure_function_base_url() -> str:
+    parsed = urlparse(AZURE_FUNCTION_URL)
+    if parsed.scheme and parsed.netloc:
+        return f"{parsed.scheme}://{parsed.netloc}"
+    return AZURE_FUNCTION_URL
 
-    try:
-        payload = {"user_id": int(user_id)}
-    except ValueError:
-        return render_template(
-            "index.html",
-            user_id_suggestions=user_id_suggestions,
-            user_count=user_count,
-            active_users=active_users,
-            default_hybrid_weight=config.MODEL_HYPERPARAMETERS["hybrid_cf_weight"],
-            recommendations=None,
-            strategy=None,
-            model=None,
-            hyperparameters=None,
-            error="Invalid user ID provided.",
-        )
 
-    try:
-        resolved_cf_weight = (
-            float(hybrid_weight) if hybrid_weight else config.MODEL_HYPERPARAMETERS["hybrid_cf_weight"]
-        )
-        resolved_cb_weight = 1.0 - resolved_cf_weight
-    except ValueError:
-        return render_template(
-            "index.html",
-            user_id_suggestions=user_id_suggestions,
-            user_count=user_count,
-            active_users=active_users,
-            default_hybrid_weight=config.MODEL_HYPERPARAMETERS["hybrid_cf_weight"],
-            recommendations=None,
-            strategy=None,
-            model=None,
-            hyperparameters=None,
-            error="Hybrid weight must be a numeric value.",
-        )
+def _azure_function_path() -> str:
+    parsed = urlparse(AZURE_FUNCTION_URL)
+    return parsed.path or "/api/recommend"
 
-    payload = {
-        "user_id": int(user_id),
-        "hybrid_weight": resolved_cf_weight,
-        "hybrid_cf_weight": resolved_cf_weight,
-        "hybrid_cb_weight": resolved_cb_weight,
+
+@app.route("/openapi.json", methods=["GET"])
+def openapi_spec():
+    spec = {
+        "openapi": "3.0.3",
+        "info": {
+            "title": "Content Recommendations API",
+            "version": "1.0.0",
+            "description": "API to generate content recommendations for a given user.",
+        },
+        "servers": [{"url": _azure_function_base_url()}],
+        "paths": {
+            _azure_function_path(): {
+                "post": {
+                    "summary": "Generate recommendations",
+                    "requestBody": {
+                        "required": True,
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "user_id": {"type": "integer"},
+                                        "hybrid_weight": {"type": "number", "format": "float"},
+                                        "hybrid_cf_weight": {"type": "number", "format": "float"},
+                                        "hybrid_cb_weight": {"type": "number", "format": "float"},
+                                    },
+                                    "required": ["user_id"],
+                                }
+                            }
+                        },
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "Recommendations payload",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "user_id": {"type": "integer"},
+                                            "strategy": {"type": "string"},
+                                            "model": {"type": "string"},
+                                            "hyperparameters": {"type": "object"},
+                                            "recommendations": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "article_id": {"type": "integer"},
+                                                        "score": {"type": "number", "format": "float"},
+                                                    },
+                                                },
+                                            },
+                                        },
+                                    }
+                                }
+                            },
+                        },
+                        "400": {"description": "Invalid request payload"},
+                        "500": {"description": "Server error"},
+                    },
+                }
+            }
+        },
     }
+    return jsonify(spec)
 
-    if valid_user_ids and payload["user_id"] not in valid_user_ids:
-        return render_template(
-            "index.html",
-            user_id_suggestions=user_id_suggestions,
-            user_count=user_count,
-            active_users=active_users,
-            default_hybrid_weight=config.MODEL_HYPERPARAMETERS["hybrid_cf_weight"],
-            recommendations=None,
-            strategy=None,
-            model=None,
-            hyperparameters=None,
-            error="Unknown user ID. Please enter an ID from the available users.",
-        )
 
-    try:
-        response = requests.post(AZURE_FUNCTION_URL, json=payload, timeout=10)
-        if response.status_code != 200:
-            raise ValueError(f"API error: {response.text}")
-        data = response.json()
-        recommendations = data.get("recommendations", [])
-        strategy = data.get("strategy")
-        model = data.get("model")
-        hyperparameters = data.get("hyperparameters")
-        return render_template(
-            "index.html",
-            user_id_suggestions=user_id_suggestions,
-            user_count=user_count,
-            active_users=active_users,
-            default_hybrid_weight=resolved_cf_weight,
-            recommendations=recommendations,
-            strategy=strategy,
-            model=model,
-            hyperparameters=hyperparameters,
-            error=None,
-        )
-    except Exception as exc:  # noqa: BLE001
-        return render_template(
-            "index.html",
-            user_id_suggestions=user_id_suggestions,
-            user_count=user_count,
-            active_users=active_users,
-            default_hybrid_weight=resolved_cf_weight,
-            recommendations=None,
-            strategy=None,
-            model=None,
-            hyperparameters=None,
-            error=f"Failed to fetch recommendations: {exc}",
-        )
+@app.route("/docs", methods=["GET"])
+def docs():
+    return render_template("docs.html")
 
 
 if __name__ == "__main__":
