@@ -60,6 +60,18 @@ def main() -> None:
 
     print("Preparing PCA-reduced embeddings...")
     article_ids, embeddings = prepare_embeddings(clicks)
+    if article_ids.size == 0:
+        raise ValueError("No article_ids were produced for embeddings. Check the embeddings source data.")
+    if np.all(article_ids == 0):
+        raise ValueError(
+            "All article_ids are zero. Embeddings are missing aligned article IDs. "
+            "Regenerate embeddings with explicit article_id mapping."
+        )
+    if embeddings.shape[0] != article_ids.shape[0]:
+        raise ValueError(
+            "Embeddings row count does not match article_ids count. "
+            f"Got embeddings={embeddings.shape[0]} vs article_ids={article_ids.shape[0]}."
+        )
     max_components = min(embeddings.shape[0], embeddings.shape[1])
     n_components = min(config.PCA_COMPONENTS, max_components)
     if n_components < config.PCA_COMPONENTS:

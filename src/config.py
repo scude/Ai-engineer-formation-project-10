@@ -9,6 +9,7 @@ DATA_ROOT: Path = REPO_ROOT / "data" / "news-portal-user-interactions-by-globoco
 # Raw data paths
 CLICKS_DIR: Path = DATA_ROOT / "clicks"
 ARTICLES_EMBEDDINGS_PATH: Path = DATA_ROOT / "articles_embeddings.pickle"
+ARTICLES_METADATA_PATH: Path = DATA_ROOT / "articles_metadata.csv"
 
 # Artifacts directory (can be overridden via environment variable)
 ARTIFACTS_DIR: Path = Path(os.getenv("ARTIFACTS_DIR", REPO_ROOT / "artifacts"))
@@ -48,6 +49,7 @@ __all__ = [
     "DATA_ROOT",
     "CLICKS_DIR",
     "ARTICLES_EMBEDDINGS_PATH",
+    "ARTICLES_METADATA_PATH",
     "ARTIFACTS_DIR",
     "ARTICLE_EMBEDDINGS_MATRIX_PATH",
     "ARTICLE_IDS_PATH",

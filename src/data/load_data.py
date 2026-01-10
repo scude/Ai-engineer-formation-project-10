@@ -10,6 +10,26 @@ import pandas as pd
 from src import config
 
 
+def _load_metadata_article_ids() -> np.ndarray:
+    """Load article_ids from the metadata CSV to align embeddings by row index."""
+    metadata_path = config.ARTICLES_METADATA_PATH
+    if not metadata_path.exists():
+        raise FileNotFoundError(
+            f"articles_metadata.csv not found at {metadata_path}. "
+            "Cannot align embeddings without explicit article IDs."
+        )
+
+    metadata = pd.read_csv(metadata_path)
+    article_col = _resolve_column(metadata, "article_id", ["article_id", "id", "articleId"])
+    article_ids = pd.to_numeric(metadata[article_col], errors="coerce")
+    if article_ids.isna().any():
+        raise ValueError(
+            f"Metadata at {metadata_path} contains non-numeric article IDs. "
+            "Check the article_id column."
+        )
+    return article_ids.astype(np.int64).to_numpy()
+
+
 def _resolve_column(df: pd.DataFrame, target: str, candidates: Iterable[str]) -> str:
     """Return the column from ``df`` matching one of the candidates.
 
@@ -159,9 +179,21 @@ def load_article_embeddings() -> pd.DataFrame:
         ]
         return pd.DataFrame.from_records(records, columns=["article_id", "embedding"])
 
+    if isinstance(payload, np.ndarray) and payload.ndim == 2:
+        article_ids = _load_metadata_article_ids()
+        if payload.shape[0] != article_ids.shape[0]:
+            raise ValueError(
+                "Embeddings matrix row count does not match metadata article_id count. "
+                f"Got embeddings={payload.shape[0]} vs metadata={article_ids.shape[0]}."
+            )
+        return _build_df_from_arrays(article_ids, payload)
+
     # Some dataset dumps use a tuple/list of (article_ids, embeddings_matrix)
     if isinstance(payload, (list, tuple)) and len(payload) == 2 and not isinstance(payload[0], dict):
         candidate_df = _build_df_from_arrays(payload[0], payload[1])
+        if candidate_df is not None:
+            return candidate_df
+        candidate_df = _build_df_from_arrays(payload[1], payload[0])
         if candidate_df is not None:
             return candidate_df
 
@@ -181,6 +213,8 @@ def _build_df_from_arrays(article_ids: Iterable, embeddings: Iterable) -> pd.Dat
     """Attempt to build a DataFrame from separate ids and embeddings arrays."""
     try:
         ids_array = np.asarray(list(article_ids))
+        if ids_array.ndim == 2 and ids_array.shape[1] == 1:
+            ids_array = ids_array[:, 0]
 
         # If embeddings is already a numeric matrix (N, D), keep its rows directly
         if isinstance(embeddings, np.ndarray) and embeddings.ndim == 2:
@@ -197,6 +231,24 @@ def _build_df_from_arrays(article_ids: Iterable, embeddings: Iterable) -> pd.Dat
     return pd.DataFrame({"article_id": ids_array.astype(int), "embedding": normalized_embeddings})
 
 
+def _build_df_from_matrix_with_id_column(matrix: np.ndarray) -> pd.DataFrame | None:
+    """Build a DataFrame from a matrix whose first column stores article ids."""
+    if matrix.ndim != 2 or matrix.shape[1] < 2:
+        return None
+
+    ids = matrix[:, 0]
+    if not np.issubdtype(ids.dtype, np.number):
+        return None
+    if not np.allclose(ids, np.round(ids)):
+        return None
+    if np.unique(ids).size <= 1:
+        return None
+
+    embeddings = matrix[:, 1:]
+    normalized_embeddings = [_normalize_embedding(vec) for vec in embeddings]
+    return pd.DataFrame({"article_id": ids.astype(int), "embedding": normalized_embeddings})
+
+
 def _build_df_from_records(records: Iterable) -> pd.DataFrame | None:
     """Handle diverse record shapes for embeddings payload."""
     try:
@@ -207,8 +259,11 @@ def _build_df_from_records(records: Iterable) -> pd.DataFrame | None:
     if not materialized:
         return None
 
-    # If numpy array with shape (n, 2) convert to list of pairs
+    # If numpy array with shape (n, d) try treating as matrix with id column first
     if isinstance(records, np.ndarray) and records.ndim == 2 and records.shape[1] >= 2:
+        candidate_df = _build_df_from_matrix_with_id_column(records)
+        if candidate_df is not None:
+            return candidate_df
         materialized = records.tolist()
 
     first = materialized[0]
