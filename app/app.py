@@ -263,7 +263,54 @@ def openapi_spec():
                         "500": {"description": "Server error"},
                     },
                 }
-            }
+            },
+            "/article-similarity": {
+                "post": {
+                    "summary": "Find similar articles",
+                    "requestBody": {
+                        "required": True,
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "article_id": {"type": "integer"},
+                                    },
+                                    "required": ["article_id"],
+                                }
+                            }
+                        },
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "Similar articles payload",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "article_id": {"type": "integer"},
+                                            "recommendations": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "article_id": {"type": "integer"},
+                                                        "score": {"type": "number", "format": "float"},
+                                                    },
+                                                },
+                                            },
+                                        },
+                                    }
+                                }
+                            },
+                        },
+                        "400": {"description": "Invalid request payload"},
+                        "404": {"description": "Unknown article_id"},
+                        "500": {"description": "Server error"},
+                    },
+                }
+            },
         },
     }
     return jsonify(spec)
