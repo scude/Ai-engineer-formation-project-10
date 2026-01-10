@@ -3,13 +3,14 @@ from __future__ import annotations
 import os
 import pickle
 import sys
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Set, Tuple
 
 import numpy as np
 from urllib.parse import urlparse
 
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, request
 
 # Ensure src package is importable
 APP_ROOT = Path(__file__).resolve().parents[1]
@@ -80,6 +81,40 @@ def load_user_catalog(max_suggestions: int = 200) -> Tuple[List[int], Set[int], 
     return user_ids[:max_suggestions], user_id_set, len(user_id_set)
 
 
+def load_article_catalog(max_suggestions: int = 200) -> Tuple[List[int], Set[int], int]:
+    """Return a preview list of article IDs plus the full set for validation."""
+
+    article_ids_path = config.ARTICLE_IDS_PATH
+    if not article_ids_path.exists():
+        return [], set(), 0
+
+    article_ids = np.load(article_ids_path).astype(int).tolist()
+    unique_ids = sorted(set(article_ids))
+    return unique_ids[:max_suggestions], set(unique_ids), len(unique_ids)
+
+
+@lru_cache(maxsize=1)
+def load_content_artifacts() -> Tuple[np.ndarray, np.ndarray, Dict[int, int]]:
+    """Load content-based artifacts for article similarity."""
+
+    article_ids_path = config.ARTICLE_IDS_PATH
+    embeddings_path = config.ARTICLE_EMBEDDINGS_MATRIX_PATH
+    if not article_ids_path.exists() or not embeddings_path.exists():
+        raise FileNotFoundError(
+            "Content-based artifacts missing. Ensure article_ids.npy and article_embeddings_pca_32.npy exist."
+        )
+
+    article_ids = np.load(article_ids_path).astype(int)
+    embeddings = np.load(embeddings_path)
+    if embeddings.shape[0] != article_ids.shape[0]:
+        raise ValueError(
+            "Embeddings row count does not match article IDs length. Rebuild content-based artifacts."
+        )
+
+    article_id_to_index = {int(aid): idx for idx, aid in enumerate(article_ids.tolist())}
+    return article_ids, embeddings, article_id_to_index
+
+
 def _normalize_user_clicks(raw: Any) -> Dict[int, np.ndarray]:
     if not isinstance(raw, dict):
         raise ValueError(f"Invalid user_clicks format: expected dict, got {type(raw)}")
@@ -134,14 +169,18 @@ def load_active_users(max_users: int = 10, max_articles: int = 6) -> List[Dict[s
 @app.route("/", methods=["GET"])
 def index():
     user_id_suggestions, _, user_count = load_user_catalog()
+    article_id_suggestions, _, article_count = load_article_catalog()
     active_users = load_active_users()
     return render_template(
         "index.html",
         user_id_suggestions=user_id_suggestions,
         user_count=user_count,
+        article_id_suggestions=article_id_suggestions,
+        article_count=article_count,
         active_users=active_users,
         default_hybrid_weight=config.MODEL_HYPERPARAMETERS["hybrid_cf_weight"],
         azure_function_url=AZURE_FUNCTION_URL,
+        article_similarity_url="/article-similarity",
         recommendations=None,
         strategy=None,
         model=None,
@@ -233,6 +272,44 @@ def openapi_spec():
 @app.route("/docs", methods=["GET"])
 def docs():
     return render_template("docs.html")
+
+
+@app.route("/article-similarity", methods=["POST"])
+def article_similarity():
+    payload = request.get_json(silent=True) or {}
+    if "article_id" not in payload:
+        return jsonify({"error": "'article_id' is required"}), 400
+
+    try:
+        article_id = int(payload["article_id"])
+    except (TypeError, ValueError):
+        return jsonify({"error": "'article_id' must be an integer"}), 400
+
+    try:
+        article_ids, embeddings, article_id_to_index = load_content_artifacts()
+    except (FileNotFoundError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 500
+
+    if article_id not in article_id_to_index:
+        return jsonify({"error": "Unknown article_id."}), 404
+
+    from src.models.similarity import cosine_similarity
+
+    target_index = article_id_to_index[article_id]
+    target_vector = embeddings[target_index]
+    scores = cosine_similarity(target_vector, embeddings)
+    scores[target_index] = -np.inf
+
+    top_k = min(config.TOP_K_RECOMMENDATIONS, len(article_ids) - 1)
+    top_indices = np.argsort(scores)[-top_k:][::-1]
+
+    recommendations = [
+        {"article_id": int(article_ids[idx]), "score": float(scores[idx])}
+        for idx in top_indices
+        if scores[idx] != -np.inf
+    ]
+
+    return jsonify({"article_id": article_id, "recommendations": recommendations})
 
 
 if __name__ == "__main__":

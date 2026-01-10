@@ -31,6 +31,20 @@
           Active Users
         </button>
       </li>
+      <li class="nav-item" role="presentation">
+        <button
+          class="nav-link"
+          id="article-similarity-tab"
+          data-bs-toggle="tab"
+          data-bs-target="#article-similarity-panel"
+          type="button"
+          role="tab"
+          aria-controls="article-similarity-panel"
+          aria-selected="false"
+        >
+          Similar Articles
+        </button>
+      </li>
     </ul>
     <div class="tab-content pt-4" id="content-tabs-content">
       <div
@@ -153,11 +167,60 @@
         </div>
         {% endif %}
       </div>
+      <div
+        class="tab-pane fade"
+        id="article-similarity-panel"
+        role="tabpanel"
+        aria-labelledby="article-similarity-tab"
+        tabindex="0"
+      >
+        <h5 class="card-title">Similar Articles (Content-Based)</h5>
+        <p class="text-muted mb-3">
+          Pick an article and retrieve the top 5 most similar items based on embeddings.
+        </p>
+        <form id="article-similarity-form" class="row g-3 align-items-end">
+          <div class="col-md-6">
+            <label for="article_id" class="form-label">Article ID</label>
+            <input
+              type="number"
+              class="form-control"
+              id="article_id"
+              name="article_id"
+              list="article_id_suggestions"
+              placeholder="Enter an article ID"
+              required
+            >
+            <datalist id="article_id_suggestions">
+              {% for article_id in article_id_suggestions %}
+                <option value="{{ article_id }}">{{ article_id }}</option>
+              {% endfor %}
+            </datalist>
+            <div class="form-text">Suggestions from {{ article_count }} available articles.</div>
+          </div>
+          <div class="col-md-2">
+            <button type="submit" class="btn btn-primary" id="article-similarity-button">Find Similar</button>
+          </div>
+        </form>
+        <div class="alert alert-danger mt-3 d-none" role="alert" id="article-error-alert"></div>
+        <div class="mt-4 d-none" id="article-similarity-result">
+          <table class="table table-striped mt-2">
+            <thead>
+              <tr>
+                <th scope="col">#</th>
+                <th scope="col">Article ID</th>
+                <th scope="col">Score</th>
+              </tr>
+            </thead>
+            <tbody id="article-similarity-body"></tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </div>
 </div>
 <script>
   const azureFunctionUrl = {{ azure_function_url | tojson }};
+  const articleSimilarityUrl = {{ article_similarity_url | tojson }};
   const hybridSlider = document.getElementById("hybrid_weight");
   const cfValue = document.getElementById("hybrid_cf_value");
   const cbValue = document.getElementById("hybrid_cb_value");
@@ -171,6 +234,11 @@
   const hyperparametersSection = document.getElementById("hyperparameters-section");
   const hyperparametersList = document.getElementById("hyperparameters-list");
   const recommendationsBody = document.getElementById("recommendations-body");
+  const articleSimilarityForm = document.getElementById("article-similarity-form");
+  const articleSimilarityButton = document.getElementById("article-similarity-button");
+  const articleErrorAlert = document.getElementById("article-error-alert");
+  const articleResultsSection = document.getElementById("article-similarity-result");
+  const articleResultsBody = document.getElementById("article-similarity-body");
 
   if (hybridSlider && cfValue && cbValue) {
     hybridSlider.addEventListener("input", (event) => {
@@ -277,6 +345,78 @@
       } finally {
         recommendButton.disabled = false;
         recommendButton.textContent = "Recommend";
+      }
+    });
+  }
+
+  const resetArticleResults = () => {
+    articleErrorAlert.classList.add("d-none");
+    articleErrorAlert.textContent = "";
+    articleResultsSection.classList.add("d-none");
+    articleResultsBody.innerHTML = "";
+  };
+
+  const setArticleError = (message) => {
+    articleErrorAlert.textContent = message;
+    articleErrorAlert.classList.remove("d-none");
+  };
+
+  if (articleSimilarityForm) {
+    articleSimilarityForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      resetArticleResults();
+
+      const articleIdInput = document.getElementById("article_id");
+      const articleId = articleIdInput?.value?.trim();
+
+      if (!articleId) {
+        setArticleError("Please select an article ID.");
+        return;
+      }
+
+      const parsedArticleId = Number(articleId);
+      if (!Number.isInteger(parsedArticleId)) {
+        setArticleError("Invalid article ID provided.");
+        return;
+      }
+
+      articleSimilarityButton.disabled = true;
+      articleSimilarityButton.textContent = "Loading...";
+
+      try {
+        const response = await fetch(articleSimilarityUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ article_id: parsedArticleId }),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText || `API error (${response.status})`);
+        }
+
+        const data = await response.json();
+        const recommendations = Array.isArray(data.recommendations) ? data.recommendations : [];
+        recommendations.forEach((rec, index) => {
+          const row = document.createElement("tr");
+          const score = Number(rec.score);
+          row.innerHTML = `
+            <th scope="row">${index + 1}</th>
+            <td>${rec.article_id ?? ""}</td>
+            <td>${Number.isFinite(score) ? score.toFixed(4) : ""}</td>
+          `;
+          articleResultsBody.appendChild(row);
+        });
+
+        articleResultsSection.classList.toggle("d-none", recommendations.length === 0);
+        if (recommendations.length === 0) {
+          setArticleError("No similar articles returned for this item.");
+        }
+      } catch (error) {
+        setArticleError(`Failed to fetch similar articles: ${error.message}`);
+      } finally {
+        articleSimilarityButton.disabled = false;
+        articleSimilarityButton.textContent = "Find Similar";
       }
     });
   }
