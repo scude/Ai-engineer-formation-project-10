@@ -1,0 +1,3 @@
+# Prevent large datasets/artifacts from being uploaded with the Function App package.
+data/
+**/articles_embeddings.pickle

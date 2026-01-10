@@ -22,6 +22,9 @@ if str(FUNCTION_ROOT) not in sys.path:
 from src import config  # noqa: E402
 from src.inference.predict import predict, serialize_recommendations  # noqa: E402
 
+EXPECTED_PCA_COMPONENTS = 32
+EXPECTED_PCA_EMBEDDINGS_FILENAME = f"article_embeddings_pca_{EXPECTED_PCA_COMPONENTS}.npy"
+
 
 def _cors_headers() -> Dict[str, str]:
     allowed_origin = os.getenv("ALLOWED_ORIGIN", "*")
@@ -46,6 +49,20 @@ def _resolve_artifacts_dir() -> str:
 
     logging.info("Resolved ARTIFACTS_DIR=%s", resolved)
     return str(resolved)
+
+
+def _validate_pca_embeddings() -> str | None:
+    if config.PCA_COMPONENTS != EXPECTED_PCA_COMPONENTS:
+        return (
+            "Invalid PCA configuration. Expected PCA_COMPONENTS="
+            f"{EXPECTED_PCA_COMPONENTS}, got {config.PCA_COMPONENTS}."
+        )
+    if config.ARTICLE_EMBEDDINGS_MATRIX_PATH.name != EXPECTED_PCA_EMBEDDINGS_FILENAME:
+        return (
+            "Invalid embeddings artifact. Expected file name="
+            f"{EXPECTED_PCA_EMBEDDINGS_FILENAME}, got {config.ARTICLE_EMBEDDINGS_MATRIX_PATH.name}."
+        )
+    return None
 
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
@@ -92,6 +109,16 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     # ----------------------------
     # Resolve artifacts directory
     # ----------------------------
+    pca_error = _validate_pca_embeddings()
+    if pca_error:
+        logging.error(pca_error)
+        return func.HttpResponse(
+            json.dumps({"error": pca_error}),
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+            mimetype="application/json",
+            headers=cors_headers,
+        )
+
     artifacts_dir = _resolve_artifacts_dir()
 
     hybrid_weight = request_json.get("hybrid_weight")
