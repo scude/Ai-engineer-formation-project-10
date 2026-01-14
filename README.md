@@ -74,6 +74,12 @@ flask --app app/app.py run
 
 Open http://localhost:5000 to interact with the UI.
 
+### Swagger documentation & Similar Articles
+
+The Flask UI includes:
+- An interactive Swagger UI at `http://localhost:5000/docs` backed by the OpenAPI spec (`/openapi.json`).
+- A **Similar Articles** tab that calls the `/article-similarity` endpoint to retrieve content-based neighbors.
+
 ## Project structure
 
 ```
