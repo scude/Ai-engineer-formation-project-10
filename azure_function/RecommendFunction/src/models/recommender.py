@@ -1,0 +1,304 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Dict, Iterable, List, Tuple
+
+import numpy as np
+from surprise import AlgoBase
+
+from src import config
+from src.models.similarity import cosine_similarity
+
+
+@dataclass
+class Recommendation:
+    article_id: int
+    score: float
+
+
+class SurpriseRecommender:
+    """Wrapper around a Surprise algorithm for top-N recommendation."""
+
+    def __init__(
+        self,
+        model: AlgoBase,
+        item_ids: Iterable[int],
+        user_clicks: Dict[int, np.ndarray],
+        popularity: List[int],
+        *,
+        top_k: int | None = None,
+    ) -> None:
+        self.model = model
+        self.item_ids = [int(iid) for iid in item_ids]
+        self.user_clicks = user_clicks
+        self.popularity = [int(aid) for aid in popularity]
+        self.top_k = top_k or config.TOP_K_RECOMMENDATIONS
+
+    def _get_seen(self, user_id: int) -> set[int]:
+        uid = int(user_id)
+        history = self.user_clicks.get(uid)
+        if history is None:
+            history = self.user_clicks.get(str(uid))
+        if history is None:
+            return set()
+        if isinstance(history, np.ndarray):
+            items = history.tolist()
+        else:
+            try:
+                items = list(history)
+            except TypeError:
+                items = []
+        return {int(aid) for aid in items if aid is not None}
+
+    def recommend(self, user_id: int) -> Tuple[List[Recommendation], str]:
+        seen = self._get_seen(user_id)
+        scored: List[Recommendation] = []
+
+        for raw_iid in self.item_ids:
+            if raw_iid in seen:
+                continue
+            pred = self.model.predict(str(user_id), str(raw_iid), verbose=False)
+            scored.append(Recommendation(article_id=int(raw_iid), score=float(pred.est)))
+
+        if not scored:
+            fallback = [aid for aid in self.popularity if aid not in seen][: self.top_k]
+            return [Recommendation(article_id=int(aid), score=0.0) for aid in fallback], "surprise-fallback"
+
+        scored.sort(key=lambda rec: rec.score, reverse=True)
+        return scored[: self.top_k], "surprise-model"
+
+
+class ContentRecommender:
+    """Content-based recommender using precomputed artifacts."""
+
+    def __init__(
+        self,
+        article_ids: np.ndarray,
+        article_embeddings: np.ndarray,
+        user_clicks: Dict[int, np.ndarray],
+        popular_articles: np.ndarray,
+        top_k: int | None = None,
+    ) -> None:
+        self.article_ids = article_ids
+        self.article_embeddings = article_embeddings
+        self.user_clicks = user_clicks
+        self.popular_articles = popular_articles
+        self.top_k = top_k or config.TOP_K_RECOMMENDATIONS
+        self.article_id_to_index = {int(aid): idx for idx, aid in enumerate(article_ids)}
+
+    def _get_user_history(self, user_id: int) -> np.ndarray:
+        """
+        Return clicked article ids for a user.
+        Robust to user_clicks dict keys being int or str.
+        """
+        uid = int(user_id)
+
+        history = self.user_clicks.get(uid)
+        if history is None:
+            history = self.user_clicks.get(str(uid))
+
+        if history is None:
+            return np.array([], dtype=np.int64)
+
+        if isinstance(history, np.ndarray):
+            return history.astype(np.int64, copy=False)
+
+        # Fallback if history is list/set/etc.
+        return np.array(list(history), dtype=np.int64)
+
+    def _user_profile(self, user_id: int) -> np.ndarray | None:
+        clicked_ids = self._get_user_history(user_id)
+        if clicked_ids.size == 0:
+            return None
+
+        indices = [self.article_id_to_index[aid] for aid in clicked_ids if aid in self.article_id_to_index]
+        if not indices:
+            return None
+
+        vectors = self.article_embeddings[indices]
+        profile = vectors.mean(axis=0)
+        return profile.astype(np.float32)
+
+    def recommend(self, user_id: int) -> Tuple[List[Recommendation], str]:
+        profile = self._user_profile(user_id)
+        clicked_ids = set(self._get_user_history(user_id).tolist())
+
+        if profile is None:
+            top_ids = self.popular_articles[: self.top_k]
+            recs = [Recommendation(article_id=int(aid), score=0.0) for aid in top_ids]
+            return recs, "popular"
+
+        scores = cosine_similarity(profile, self.article_embeddings)
+
+        # Exclude already clicked articles
+        mask = np.isin(self.article_ids, list(clicked_ids))
+        scores_filtered = np.where(mask, -np.inf, scores)
+
+        top_indices = np.argsort(scores_filtered)[-self.top_k :][::-1]
+        recs = [
+            Recommendation(article_id=int(self.article_ids[idx]), score=float(scores[idx]))
+            for idx in top_indices
+            if scores_filtered[idx] != -np.inf
+        ]
+
+        return recs, "content-based"
+
+
+class HybridCovisitationRecommender:
+    """Hybrid recommender mixing co-visitation similarity with popularity.
+
+    Mirrors the implementation used in the training notebook so that serving
+    behaves identically to the validated E3-1 model.
+    """
+
+    def __init__(
+        self,
+        similarity: Dict[int, Dict[int, float]],
+        popularity: List[int],
+        popularity_scores: Dict[int, float],
+        user_clicks: Dict[int, np.ndarray],
+        *,
+        alpha: float,
+        top_k: int | None = None,
+    ) -> None:
+        self.similarity = {
+            int(item): {int(nbr): float(score) for nbr, score in neighbors.items()}
+            for item, neighbors in similarity.items()
+        }
+        self.popularity = [int(aid) for aid in popularity]
+        self.popularity_scores = {int(k): float(v) for k, v in popularity_scores.items()}
+        self.user_clicks = user_clicks
+        self.alpha = float(alpha)
+        self.top_k = top_k or config.TOP_K_RECOMMENDATIONS
+
+    def _get_seen(self, user_id: int) -> set[int]:
+        uid = int(user_id)
+        history = self.user_clicks.get(uid)
+        if history is None:
+            history = self.user_clicks.get(str(uid))
+        if history is None:
+            return set()
+
+        if isinstance(history, np.ndarray):
+            items = history.tolist()
+        else:
+            try:
+                items = list(history)
+            except TypeError:
+                items = []
+
+        return {int(aid) for aid in items if aid is not None}
+
+    def recommend(self, user_id: int) -> Tuple[List[Recommendation], str]:
+        seen = self._get_seen(user_id)
+
+        scores: Dict[int, float] = {}
+        for item in seen:
+            for neighbor, sim in self.similarity.get(item, {}).items():
+                if neighbor in seen:
+                    continue
+                scores[neighbor] = scores.get(neighbor, 0.0) + self.alpha * float(sim)
+
+        for item, pop_score in self.popularity_scores.items():
+            if item in seen:
+                continue
+            scores[item] = scores.get(item, 0.0) + (1 - self.alpha) * float(pop_score)
+
+        ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        recs = [Recommendation(article_id=int(it), score=float(score)) for it, score in ranked]
+
+        if len(recs) < self.top_k:
+            existing = {rec.article_id for rec in recs}
+            for aid in self.popularity:
+                if aid in seen or aid in existing:
+                    continue
+                recs.append(Recommendation(article_id=int(aid), score=0.0))
+                if len(recs) >= self.top_k:
+                    break
+
+        return recs[: self.top_k], "hybrid-covisitation-popularity"
+
+
+class HybridSVDContentRecommender:
+    """Hybrid rank-fusion of SVD++ (session-weighted) and content-based cosine."""
+
+    def __init__(
+        self,
+        model: AlgoBase,
+        item_ids: Iterable[int],
+        article_ids: np.ndarray,
+        article_embeddings: np.ndarray,
+        user_clicks: Dict[int, np.ndarray],
+        popularity: List[int],
+        *,
+        cf_weight: float,
+        cb_weight: float,
+        top_k: int | None = None,
+        candidate_pool: int | None = None,
+    ) -> None:
+        self.top_k = top_k or config.TOP_K_RECOMMENDATIONS
+        self.candidate_pool = candidate_pool or config.HYBRID_CANDIDATE_POOL
+        self.cf_weight = float(cf_weight)
+        self.cb_weight = float(cb_weight)
+        self.popularity = [int(aid) for aid in popularity]
+        self.user_clicks = user_clicks
+
+        pool_size = max(self.candidate_pool, self.top_k)
+        self.cf_recommender = SurpriseRecommender(
+            model=model,
+            item_ids=item_ids,
+            user_clicks=user_clicks,
+            popularity=self.popularity,
+            top_k=pool_size,
+        )
+        self.cb_recommender = ContentRecommender(
+            article_ids=article_ids,
+            article_embeddings=article_embeddings,
+            user_clicks=user_clicks,
+            popular_articles=np.asarray(self.popularity, dtype=np.int64),
+            top_k=pool_size,
+        )
+
+    def _get_seen(self, user_id: int) -> set[int]:
+        uid = int(user_id)
+        history = self.user_clicks.get(uid)
+        if history is None:
+            history = self.user_clicks.get(str(uid))
+        if history is None:
+            return set()
+        if isinstance(history, np.ndarray):
+            items = history.tolist()
+        else:
+            try:
+                items = list(history)
+            except TypeError:
+                items = []
+        return {int(aid) for aid in items if aid is not None}
+
+    def _blend_rank_scores(self, recs: List[Recommendation], weight: float, scores: Dict[int, float]) -> None:
+        for idx, rec in enumerate(recs):
+            rank_score = 1.0 / (idx + 1)
+            scores[rec.article_id] = scores.get(rec.article_id, 0.0) + weight * rank_score
+
+    def recommend(self, user_id: int) -> Tuple[List[Recommendation], str]:
+        cf_recs, _ = self.cf_recommender.recommend(user_id)
+        cb_recs, _ = self.cb_recommender.recommend(user_id)
+
+        scores: Dict[int, float] = {}
+        self._blend_rank_scores(cf_recs, self.cf_weight, scores)
+        self._blend_rank_scores(cb_recs, self.cb_weight, scores)
+
+        ranked = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+        recs = [Recommendation(article_id=int(aid), score=float(score)) for aid, score in ranked[: self.top_k]]
+
+        if len(recs) < self.top_k:
+            seen = self._get_seen(user_id)
+            existing = {rec.article_id for rec in recs}
+            for aid in self.popularity:
+                if aid in seen or aid in existing:
+                    continue
+                recs.append(Recommendation(article_id=int(aid), score=0.0))
+                if len(recs) >= self.top_k:
+                    break
+
+        return recs[: self.top_k], "hybrid-svdpp-content"

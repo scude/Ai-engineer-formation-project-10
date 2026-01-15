@@ -13,11 +13,21 @@ import azure.functions as func
 # ---------------------------------------------------------
 # Ensure src package is importable (robuste et déterministe)
 # ---------------------------------------------------------
-# __file__ = .../azure_function/RecommendFunction/recommend/__init__.py
-# parents[2] = repo root
-FUNCTION_ROOT = Path(__file__).resolve().parents[2]
-if str(FUNCTION_ROOT) not in sys.path:
-    sys.path.insert(0, str(FUNCTION_ROOT))
+def _resolve_function_app_root() -> Path:
+    """Find the Azure Functions app root (folder containing host.json)."""
+    for parent in Path(__file__).resolve().parents:
+        if (parent / "host.json").exists():
+            return parent
+    return Path(__file__).resolve().parents[1]
+
+
+FUNCTION_APP_ROOT = _resolve_function_app_root()
+
+for candidate in (FUNCTION_APP_ROOT, *FUNCTION_APP_ROOT.parents):
+    if (candidate / "src").exists():
+        if str(candidate) not in sys.path:
+            sys.path.insert(0, str(candidate))
+        break
 
 from src import config  # noqa: E402
 from src.inference.predict import predict, serialize_recommendations  # noqa: E402
@@ -40,12 +50,12 @@ def _resolve_artifacts_dir() -> str:
     Resolve ARTIFACTS_DIR to an absolute path.
     Accepts relative paths defined from the Function App root.
     """
-    raw = os.getenv("ARTIFACTS_DIR", "../../artifacts")
+    raw = os.getenv("ARTIFACTS_DIR", "artifacts")
 
     if os.path.isabs(raw):
         resolved = Path(raw)
     else:
-        resolved = (FUNCTION_ROOT / raw).resolve()
+        resolved = (FUNCTION_APP_ROOT / raw).resolve()
 
     logging.info("Resolved ARTIFACTS_DIR=%s", resolved)
     return str(resolved)

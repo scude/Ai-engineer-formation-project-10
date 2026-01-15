@@ -226,16 +226,16 @@
                     <div style="width: 48%;">
                         <h3 style="color: #FF6E78;">📈 Résultats observés</h3>
                         <ul>
-                            <li>precision@5 = <strong>0.004396</strong></li>
-                            <li>recall@5 = <strong>0.021981</strong></li>
-                            <li>ndcg@5 = <strong>0.011706</strong></li>
-                            <li>coverage@5 = <strong>0.0066</strong> (faible)</li>
+                            <li>precision@5 = <strong>0.001104</strong></li>
+                            <li>recall@5 = <strong>0.005522</strong></li>
+                            <li>ndcg@5 = <strong>0.003815</strong></li>
+                            <li>coverage@5 = <strong>0.6565</strong></li>
                         </ul>
                     </div>
                 </div>
                 <div style="margin-top: 1.4em; background: #1a1a1a; padding: 0.8em; border-radius: 10px;">
                     <p style="margin: 0; font-size: 0.9em;">
-                        ✅ Qualité de ranking maximale
+                        ✅ Couverture correcte, mais qualité de ranking en retrait face aux modèles collaboratifs.
                     </p>
                 </div>
             </section>
@@ -261,7 +261,7 @@
                             <li>SVD++ basic : precision@5 = <strong>0.000278</strong></li>
                             <li>SVD++ pondéré : precision@5 = <strong>0.001630</strong></li>
                             <li>recall@5 = <strong>0.008150</strong> (pondéré)</li>
-                            <li>ndcg@5 = <strong>0.005016</strong> (pondéré)</li>
+                            <li>coverage@5 = <strong>0.447400</strong> (pondéré)</li>
                             <li>RMSE : <strong>0.7210</strong> (basic) vs <strong>1.5824</strong> (pondéré)</li>
                         </ul>
                         <p style="margin-top: 0.6em; font-size: 0.82em;">
@@ -271,8 +271,8 @@
                 </div>
                  <div style="margin-top: 1.4em; background: #1a1a1a; padding: 0.8em; border-radius: 10px;">
                     <p style="margin: 0; font-size: 0.9em;">
-                        ⚠️ Le collaboratif seul reste inférieur au content-based sur ce dataset, malgré un
-                            gain de recall/NDCG via la pondération.
+                        ⚠️ Le collaboratif pondéré dépasse le content-based en recall/NDCG, mais reste sensible à la
+                            sparsité et au cold-start.
                     </p>
                 </div>
             </section>
@@ -295,7 +295,7 @@
                         <h3 style="color: #FF6E78;">💡 Justification</h3>
                         <ul>
                             <li>Injecter une <strong>variance minimale</strong> pour Surprise</li>
-                            <li>Favoriser les sessions longues (engagement)</li>
+                            <li>Favoriser les longues sessions (engagement)</li>
                             <li>Maintenir une logique purement implicite</li>
                         </ul>
 
@@ -325,10 +325,10 @@
                     <div style="width: 48%;">
                         <h3 style="color: #FF6E78;">📈 Résultats</h3>
                         <ul>
-                            <li>precision@5 = <strong>0.002379</strong></li>
-                            <li>recall@5 = <strong>0.011893</strong></li>
-                            <li>ndcg@5 = <strong>0.006559</strong></li>
-                            <li>coverage@5 = <strong>0.3988</strong></li>
+                            <li>precision@5 = <strong>0.001788</strong></li>
+                            <li>recall@5 = <strong>0.008940</strong></li>
+                            <li>ndcg@5 = <strong>0.005382</strong></li>
+                            <li>coverage@5 = <strong>3.2502</strong></li>
                         </ul>
 
                     </div>
@@ -336,7 +336,7 @@
                                  <div style="margin-top: 1.4em; background: #1a1a1a; padding: 0.8em; border-radius: 10px;">
                     <p style="margin: 0; font-size: 0.9em;">
                                    ✅ Meilleur compromis qualité/couverture → retenu pour le MVP.<br />
-                            ⚠️ Limite : la qualité reste inférieure au content-based seul.
+                            ⚠️ Limite : dépendance à deux sources (modèle SVD++ + embeddings).
                     </p>
                 </div>
             </section>
@@ -447,9 +447,9 @@
                 <p style="font-size: 1.05em; text-align: center;">Synthèse des choix techniques</p>
 
                 <ul style="font-size: 0.95em; margin-top: 1em;">
-                    <li>Le <strong>content-based</strong> obtient la meilleure qualité, mais une couverture trop faible.</li>
-                    <li>Le <strong>collaboratif SVD++ pondéré</strong> améliore recall/NDCG mais reste limité seul.</li>
-                    <li>Le <strong>modèle hybride</strong> offre le meilleur compromis qualité/couverture.</li>
+                    <li>Le <strong>content-based</strong> conserve une couverture correcte mais une qualité de ranking plus faible.</li>
+                    <li>Le <strong>collaboratif SVD++ pondéré</strong> dépasse le content-based en recall/NDCG.</li>
+                    <li>Le <strong>modèle hybride</strong> offre le meilleur compromis qualité/couverture et le meilleur ranking global.</li>
                     <li>✅ <strong>Modèle retenu pour le MVP</strong> : SVD++ pondéré + contenu (60/40).</li>
                 </ul>
             </section>
@@ -459,10 +459,11 @@
                 <p style="font-size: 1.05em; text-align: center;">Axes d’amélioration possibles</p>
 
                 <ul style="font-size: 0.95em; margin-top: 1em;">
-                    <li><strong>Améliorer la couverture</strong> en alignant embeddings et article_id.</li>
+                    <li><strong>Améliorer le dataset</strong> en collectant plus de données,<br  /> avec un embedding plus perfectionné</li>
                     <li><strong>Feature engineering</strong> sur sessions (durée, catégorie, device).</li>
                     <li><strong>Scalabilité</strong> : batch scoring + cache Redis.</li>
-                    <li><strong>Évolutions modèles</strong> : two-tower, LightFM, sequential recsys.</li>
+                    <li><strong>Évolutions modèles</strong> : LightFM, two-tower, sequential recsys.</li>
+                    <li><strong>Un hébergement </strong> moins restrictif</li>
                 </ul>
             </section>
 
@@ -484,4 +485,3 @@
 </body>
 
 </html>
-
