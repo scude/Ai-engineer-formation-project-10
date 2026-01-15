@@ -36,12 +36,39 @@ EXPECTED_PCA_COMPONENTS = 32
 EXPECTED_PCA_EMBEDDINGS_FILENAME = f"article_embeddings_pca_{EXPECTED_PCA_COMPONENTS}.npy"
 
 
-def _cors_headers() -> Dict[str, str]:
-    allowed_origin = os.getenv("ALLOWED_ORIGIN", "*")
+def _parse_allowed_origins() -> list[str]:
+    raw = os.getenv("ALLOWED_ORIGINS")
+    if raw:
+        return [origin.strip() for origin in raw.split(",") if origin.strip()]
+
+    fallback = os.getenv("ALLOWED_ORIGIN")
+    if fallback:
+        return [fallback.strip()]
+
+    return []
+
+
+def _resolve_allowed_origin(request_origin: str | None) -> str:
+    allowed_origins = _parse_allowed_origins()
+    if not allowed_origins:
+        return request_origin or "*"
+
+    if "*" in allowed_origins:
+        return "*"
+
+    if request_origin and request_origin in allowed_origins:
+        return request_origin
+
+    return allowed_origins[0]
+
+
+def _cors_headers(request_origin: str | None) -> Dict[str, str]:
+    allowed_origin = _resolve_allowed_origin(request_origin)
     return {
         "Access-Control-Allow-Origin": allowed_origin,
         "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Vary": "Origin",
     }
 
 
@@ -77,7 +104,8 @@ def _validate_pca_embeddings() -> str | None:
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Received request for recommendations")
-    cors_headers = _cors_headers()
+    request_origin = req.headers.get("Origin")
+    cors_headers = _cors_headers(request_origin)
 
     if req.method == "OPTIONS":
         return func.HttpResponse(status_code=HTTPStatus.NO_CONTENT, headers=cors_headers)

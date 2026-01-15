@@ -108,7 +108,10 @@ az functionapp config appsettings set \
   ALLOWED_ORIGIN="*"
 ```
 
-> **Note CORS** : si vous déployez aussi l’app Flask sur un domaine public, remplacez `ALLOWED_ORIGIN="*"` par l’URL de cette app.
+> **Note CORS** : pour un environnement local, vous pouvez définir
+> `ALLOWED_ORIGIN="http://127.0.0.1:5000"` (ou `http://localhost:5000` selon votre URL).
+> Pour plusieurs origines, utilisez `ALLOWED_ORIGINS` avec une liste séparée par des virgules
+> (ex. `ALLOWED_ORIGINS="http://127.0.0.1:5000,https://monapp.com"`).
 
 ## 6) Récupérer l’URL de la fonction
 
